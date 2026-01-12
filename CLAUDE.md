@@ -9,6 +9,7 @@ A web app that extracts key information from SaaS contract PDFs using AI.
 - **AI**: Anthropic Claude API for contract analysis
 - **Email**: Gmail OAuth2 integration
 - **PDF Processing**: PyMuPDF, PyPDF2, pdf2image, pytesseract
+- **Deployment**: Railway with nixpacks (for poppler + tesseract system deps)
 
 ## Design System
 
@@ -29,6 +30,7 @@ A web app that extracts key information from SaaS contract PDFs using AI.
 | `email_service.py` | Gmail OAuth2 integration |
 | `pdf_processor.py` | PDF text extraction |
 | `.env` | API keys (never commit) |
+| `nixpacks.toml` | Railway build config for system deps |
 
 ## Running Locally
 
@@ -37,6 +39,13 @@ cd contract-extractor
 python3 app.py
 # Opens at http://localhost:5001
 ```
+
+## Deployment
+
+- **Live URL**: https://msa-extraction-machine.up.railway.app/
+- **Platform**: Railway (auto-deploys from git push)
+- **Required Railway variables**: ANTHROPIC_API_KEY
+- Push to `origin` (personal) and `work` (company) remotes
 
 ## Troubleshooting
 
@@ -71,7 +80,8 @@ GMAIL_CLIENT_SECRET=your-client-secret
 
 ## Current State
 
-- Gmail OAuth2 configured and credentials in .env
+- Deployed and live on Railway
+- Gmail OAuth2 configured locally (credentials in .env)
 - Gmail OAuth flow not yet tested end-to-end
 - Email section styled to match other sections
 - Bar charts have rounded top corners
