@@ -1021,8 +1021,9 @@ body {
 }
 
 .home-title {
+  font-family: 'Neue Haas Grotesk Display Pro', 'Neue Haas Grotesk', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 39px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   letter-spacing: -0.02em;
   margin-bottom: var(--space-sm);
