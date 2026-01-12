@@ -342,7 +342,7 @@ const HomeView = ({ recentContracts, onFileSelect, onSelectContract, onClearRece
             <ThemeToggle theme={theme} onToggle={onThemeToggle} />
         </div>
         <div className="home-header">
-            <h1 className="home-title">The MSA Extraction Machine</h1>
+            <h1 className="home-title">MSA Extraction Machine</h1>
             <p className="home-tagline">
                 Extract key terms, fees, and dates from Master Service Agreements in seconds.
             </p>

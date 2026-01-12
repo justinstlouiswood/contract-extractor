@@ -1,4 +1,4 @@
-# Contract Extractor
+# MSA Extraction Machine
 
 A web app that extracts key information from SaaS contract PDFs using AI.
 
@@ -17,8 +17,9 @@ A web app that extracts key information from SaaS contract PDFs using AI.
 
 - Light/dark mode toggle
 - Accent color: Sage green (`#5C8D73` light, `#6AA386` dark)
-- Fonts: Inter for UI, JetBrains Mono for code/data
+- Fonts: Inter for UI, JetBrains Mono for code/data, Neue Haas Grotesk for main title
 - Soft shadows, rounded corners (6-10px)
+- Custom favicon: `static/favicon.jpg`
 
 ## Key Files
 
@@ -31,6 +32,7 @@ A web app that extracts key information from SaaS contract PDFs using AI.
 | `pdf_processor.py` | PDF text extraction |
 | `.env` | API keys (never commit) |
 | `nixpacks.toml` | Railway build config for system deps |
+| `static/favicon.jpg` | Browser tab icon |
 
 ## Running Locally
 
@@ -85,3 +87,5 @@ GMAIL_CLIENT_SECRET=your-client-secret
 - Gmail OAuth flow not yet tested end-to-end
 - Email section styled to match other sections
 - Bar charts have rounded top corners
+- Custom favicon added
+- Homepage title: "MSA Extraction Machine" (Neue Haas Grotesk font)
