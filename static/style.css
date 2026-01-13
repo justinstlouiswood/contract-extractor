@@ -43,7 +43,7 @@
 
   /* Layout */
   --header-height: 56px;
-  --content-max-width: 1200px;
+  --content-max-width: 1800px;
 
   /* Border Radius - Softer corners */
   --radius-sm: 6px;
@@ -1749,8 +1749,176 @@ body {
 }
 
 /* ============================================
+   PDF VIEWER - PERSISTENT 50/50 SPLIT LAYOUT
+   ============================================ */
+.contract-detail-layout {
+  display: flex;
+  gap: var(--space-lg);
+}
+
+/* Without PDF: full width, centered */
+.contract-detail-main {
+  flex: 1;
+  min-width: 0;
+  max-width: 1000px;
+}
+
+/* With PDF: 50/50 split, both panels scroll independently */
+.contract-detail-layout.with-pdf {
+  align-items: flex-start;
+}
+
+.contract-detail-layout.with-pdf .contract-detail-main {
+  flex: 1 1 50%;
+  max-width: none;
+  max-height: calc(100vh - var(--header-height) - var(--space-xl) * 2);
+  overflow-y: auto;
+  padding-right: var(--space-md);
+}
+
+/* PDF Panel - Fixed 50% width */
+.pdf-panel {
+  flex: 1 1 50%;
+  height: calc(100vh - var(--header-height) - var(--space-xl) * 2);
+  position: sticky;
+  top: calc(var(--header-height) + var(--space-xl));
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.pdf-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  flex-shrink: 0;
+}
+
+.pdf-panel-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* PDF Controls - Zoom only (no page nav) */
+.pdf-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.pdf-zoom-btn {
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  transition: all 0.15s ease;
+}
+
+.pdf-zoom-btn:hover {
+  background: var(--bg-interactive);
+  color: var(--text-primary);
+  border-color: var(--border-interactive);
+}
+
+.pdf-zoom-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.pdf-zoom-level {
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-width: 40px;
+  text-align: center;
+}
+
+/* PDF Content Area - Continuous scroll */
+.pdf-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg-canvas);
+}
+
+.pdf-pages-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+}
+
+.pdf-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.pdf-canvas {
+  max-width: 100%;
+  height: auto;
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm);
+}
+
+.pdf-page-number {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.pdf-loading,
+.pdf-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.pdf-error {
+  color: var(--text-primary);
+}
+
+/* ============================================
    RESPONSIVE
    ============================================ */
+/* Hide PDF panel on smaller screens - stack vertically on medium */
+@media (max-width: 1200px) {
+  .contract-detail-layout.with-pdf {
+    flex-direction: column;
+  }
+
+  .contract-detail-layout.with-pdf .contract-detail-main {
+    flex: none;
+    max-height: none;
+    overflow-y: visible;
+    padding-right: 0;
+  }
+
+  .pdf-panel {
+    flex: none;
+    width: 100%;
+    height: 500px;
+    position: relative;
+    top: 0;
+    margin-top: var(--space-lg);
+  }
+}
+
 @media (max-width: 768px) {
   .data-grid {
     grid-template-columns: 1fr;
@@ -1785,6 +1953,10 @@ body {
 
   .chart-container {
     height: 220px;
+  }
+
+  .pdf-panel {
+    height: 400px;
   }
 
   .home-theme-toggle {

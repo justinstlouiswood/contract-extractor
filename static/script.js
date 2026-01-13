@@ -214,6 +214,43 @@ const Icons = {
             <path d="M3 5h4"/>
             <path d="M17 19h4"/>
         </svg>
+    ),
+    Eye: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+        </svg>
+    ),
+    EyeOff: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+            <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>
+    ),
+    ChevronLeft: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+        </svg>
+    ),
+    ChevronRight: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+        </svg>
+    ),
+    ZoomIn: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <line x1="11" y1="8" x2="11" y2="14"/>
+            <line x1="8" y1="11" x2="14" y2="11"/>
+        </svg>
+    ),
+    ZoomOut: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <line x1="8" y1="11" x2="14" y2="11"/>
+        </svg>
     )
 };
 
@@ -1219,8 +1256,125 @@ const EmailSection = ({ contractData, extractedInfo, gmailAuth, onAuthClick, onS
     );
 };
 
+// PDF Viewer Panel Component - Continuous scroll, always visible when pdfId exists
+const PDFViewerPanel = ({ pdfId }) => {
+    const containerRef = useRef(null);
+    const canvasRefs = useRef({});
+    const [pdfDoc, setPdfDoc] = useState(null);
+    const [totalPages, setTotalPages] = useState(0);
+    const [scale, setScale] = useState(1.0);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [renderedPages, setRenderedPages] = useState(new Set());
+
+    // Load PDF document
+    useEffect(() => {
+        if (!pdfId) return;
+
+        setLoading(true);
+        setError(null);
+        setRenderedPages(new Set());
+
+        const loadPdf = async () => {
+            try {
+                const pdf = await pdfjsLib.getDocument(`/pdf/${pdfId}`).promise;
+                setPdfDoc(pdf);
+                setTotalPages(pdf.numPages);
+                setLoading(false);
+            } catch (err) {
+                setError('Failed to load PDF');
+                setLoading(false);
+            }
+        };
+
+        loadPdf();
+    }, [pdfId]);
+
+    // Render a single page to its canvas
+    const renderPage = async (pageNum) => {
+        if (!pdfDoc || !canvasRefs.current[pageNum]) return;
+        if (renderedPages.has(`${pageNum}-${scale}`)) return;
+
+        const page = await pdfDoc.getPage(pageNum);
+        const viewport = page.getViewport({ scale });
+        const canvas = canvasRefs.current[pageNum];
+        const context = canvas.getContext('2d');
+
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        await page.render({
+            canvasContext: context,
+            viewport: viewport
+        }).promise;
+
+        setRenderedPages(prev => new Set([...prev, `${pageNum}-${scale}`]));
+    };
+
+    // Render all pages when PDF loads or scale changes
+    useEffect(() => {
+        if (!pdfDoc) return;
+
+        // Clear rendered pages cache when scale changes
+        setRenderedPages(new Set());
+
+        // Render all pages
+        const renderAllPages = async () => {
+            for (let i = 1; i <= totalPages; i++) {
+                await renderPage(i);
+            }
+        };
+
+        renderAllPages();
+    }, [pdfDoc, scale, totalPages]);
+
+    // Don't render if no pdfId
+    if (!pdfId) return null;
+
+    return (
+        <div className="pdf-panel">
+            <div className="pdf-panel-header">
+                <span className="pdf-panel-title">Source Document</span>
+                <div className="pdf-zoom-controls">
+                    <button
+                        className="pdf-zoom-btn"
+                        onClick={() => setScale(s => Math.max(0.5, s - 0.25))}
+                    >
+                        <Icons.ZoomOut />
+                    </button>
+                    <span className="pdf-zoom-level">{Math.round(scale * 100)}%</span>
+                    <button
+                        className="pdf-zoom-btn"
+                        onClick={() => setScale(s => Math.min(2.0, s + 0.25))}
+                    >
+                        <Icons.ZoomIn />
+                    </button>
+                </div>
+            </div>
+
+            <div className="pdf-panel-content" ref={containerRef}>
+                {loading && <div className="pdf-loading">Loading PDF...</div>}
+                {error && <div className="pdf-error">{error}</div>}
+                {!loading && !error && (
+                    <div className="pdf-pages-container">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                            <div key={pageNum} className="pdf-page-wrapper">
+                                <canvas
+                                    ref={el => canvasRefs.current[pageNum] = el}
+                                    className="pdf-canvas"
+                                />
+                                <div className="pdf-page-number">Page {pageNum} of {totalPages}</div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 // Contract Detail View Component
-const ContractDetailView = ({ data, onCopy, theme, gmailAuth, onGmailAuthClick, onSendEmail }) => {
+const ContractDetailView = ({ data, pdfId, onCopy, theme, gmailAuth, onGmailAuthClick, onSendEmail }) => {
     const parsed_data = data.parsed_data;
     const confidence = parsed_data.confidence || {};
     const [showConfidenceHelp, setShowConfidenceHelp] = useState(false);
@@ -1272,25 +1426,26 @@ const ContractDetailView = ({ data, onCopy, theme, gmailAuth, onGmailAuthClick, 
     const hasConfidenceData = Object.keys(confidence).length > 0;
 
     return (
-        <div className="contract-detail-view">
-            {/* Total Contract Value - Prominent */}
-            {parsed_data.total_contract_value > 0 && (
-                <div className="total-value-section">
-                    <div className="total-value-label">Total Contract Value</div>
-                    <div className="total-value-customer">{parsed_data.customer_name}</div>
-                    <div className="total-value-amount">
-                        {formatCurrency(parsed_data.total_contract_value)}
-                        <span className="total-value-currency">{parsed_data.currency}</span>
+        <div className={`contract-detail-layout ${pdfId ? 'with-pdf' : ''}`}>
+            <div className="contract-detail-main">
+                {/* Total Contract Value - Prominent */}
+                {parsed_data.total_contract_value > 0 && (
+                    <div className="total-value-section">
+                        <div className="total-value-label">Total Contract Value</div>
+                        <div className="total-value-customer">{parsed_data.customer_name}</div>
+                        <div className="total-value-amount">
+                            {formatCurrency(parsed_data.total_contract_value)}
+                            <span className="total-value-currency">{parsed_data.currency}</span>
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* Confidence Help Link */}
-            {hasConfidenceData && (
-                <div className="confidence-help-row">
-                    <ConfidenceHelpTrigger onClick={() => setShowConfidenceHelp(true)} />
-                </div>
-            )}
+                {/* Confidence Help Link */}
+                {hasConfidenceData && (
+                    <div className="confidence-help-row">
+                        <ConfidenceHelpTrigger onClick={() => setShowConfidenceHelp(true)} />
+                    </div>
+                )}
 
             {/* Two-Column Data Grid */}
             <div className="data-grid">
@@ -1503,17 +1658,21 @@ const ContractDetailView = ({ data, onCopy, theme, gmailAuth, onGmailAuthClick, 
                 <ExtractedTextDisplay text={data.extracted_info} showTags={showSourceTags} />
             </div>
 
-            {/* Source Tags Help Modal */}
-            <SourceTagsHelpModal isOpen={showSourceTagsHelp} onClose={() => setShowSourceTagsHelp(false)} />
+                {/* Source Tags Help Modal */}
+                <SourceTagsHelpModal isOpen={showSourceTagsHelp} onClose={() => setShowSourceTagsHelp(false)} />
 
-            {/* Email Section */}
-            <EmailSection
-                contractData={parsed_data}
-                extractedInfo={data.extracted_info}
-                gmailAuth={gmailAuth}
-                onAuthClick={onGmailAuthClick}
-                onSendEmail={onSendEmail}
-            />
+                {/* Email Section */}
+                <EmailSection
+                    contractData={parsed_data}
+                    extractedInfo={data.extracted_info}
+                    gmailAuth={gmailAuth}
+                    onAuthClick={onGmailAuthClick}
+                    onSendEmail={onSendEmail}
+                />
+            </div>
+
+            {/* PDF Viewer Panel - Always visible when pdfId exists */}
+            <PDFViewerPanel pdfId={pdfId} />
         </div>
     );
 };
@@ -1543,6 +1702,7 @@ const App = () => {
         { label: 'Generating summary', status: 'pending', message: '' }
     ]);
     const [gmailAuth, setGmailAuth] = useState({ authenticated: false, email: null });
+    const [pdfId, setPdfId] = useState(null);
 
     const abortControllerRef = useRef(null);
 
@@ -1666,6 +1826,11 @@ const App = () => {
             // Save to history
             saveContract(result);
             setRecentContracts(getRecentContracts());
+
+            // Store PDF ID for viewer access
+            if (result.pdf_id) {
+                setPdfId(result.pdf_id);
+            }
 
             setCurrentContract(result);
             setView('detail');
@@ -1822,6 +1987,7 @@ const App = () => {
                     {view === 'detail' && currentContract && (
                         <ContractDetailView
                             data={currentContract}
+                            pdfId={pdfId}
                             onCopy={handleCopy}
                             theme={theme}
                             gmailAuth={gmailAuth}

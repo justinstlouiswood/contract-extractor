@@ -9,6 +9,7 @@ A web app that extracts key information from SaaS contract PDFs using AI.
 - **AI**: Anthropic Claude API for contract analysis
 - **Email**: Gmail OAuth2 integration
 - **PDF Processing**: PyMuPDF, PyPDF2, pdf2image, pytesseract
+- **PDF Viewing**: PDF.js via CDN
 - **Deployment**: Railway with nixpacks (for poppler + tesseract system deps)
 
 ## Design System
@@ -79,6 +80,26 @@ GMAIL_CLIENT_SECRET=your-client-secret
 3. Revenue Overview chart
 4. Full Extracted Details section
 5. Send Email section (at bottom)
+6. PDF Viewer panel (right side, when PDF exists)
+
+## PDF Viewer
+
+Persistent 50/50 split layout displays uploaded PDF alongside extraction results.
+
+- **Backend**: PDFs stored with UUID in `uploads/`, served via `/pdf/<pdf_id>`
+- **Layout**: 50% extraction results | 50% PDF (side-by-side)
+- **Rendering**: Continuous scroll with all pages visible
+- **Controls**: Zoom only (no page navigation needed)
+- **Responsive**: Stacks vertically below 1200px viewport width
+- **Max width**: Container expanded to 1800px to accommodate split view
+
+## Source Tags
+
+Extracted text includes source tags indicating data provenance.
+
+- **Tag colors**: MULTIPLE (dark green `#4a7c59`) > EXPLICIT (muted green) > INFERRED (muted red)
+- **Tooltip**: "?" icon next to "Full Extracted Details" opens help modal
+- **Clean toggle**: Button to hide/show source tags for cleaner view
 
 ## Current State
 
@@ -89,3 +110,5 @@ GMAIL_CLIENT_SECRET=your-client-secret
 - Bar charts have rounded top corners
 - Custom favicon added
 - Homepage title: "MSA Extraction Machine" (Neue Haas Grotesk font)
+- PDF viewer with persistent 50/50 split layout
+- Source tags with tooltip help modal and clean toggle

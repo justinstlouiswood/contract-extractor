@@ -16,7 +16,7 @@ import tempfile
 import threading
 import uuid
 from pathlib import Path
-from flask import Flask, request, jsonify, render_template, Response, stream_with_context, session, redirect, url_for
+from flask import Flask, request, jsonify, render_template, Response, stream_with_context, session, redirect, url_for, send_file
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import anthropic
@@ -46,6 +46,11 @@ active_jobs = {}
 def allowed_file(filename):
     """Check if the uploaded file has a .pdf extension"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def get_pdf_path(pdf_id):
+    """Get the file path for a stored PDF by its ID"""
+    return os.path.join(app.config['UPLOAD_FOLDER'], f'{pdf_id}.pdf')
 
 
 def extract_signal(text):
@@ -575,18 +580,23 @@ def upload_file():
     try:
         filename = secure_filename(file.filename)
 
-        # Create a temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-            file.save(tmp_file.name)
-            temp_path = tmp_file.name
+        # Generate unique ID for this PDF and persist it
+        pdf_id = str(uuid.uuid4())
+        pdf_path = get_pdf_path(pdf_id)
+
+        # Ensure upload folder exists
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+        # Save PDF file permanently (for viewer access)
+        file.save(pdf_path)
 
         # Extract text from PDF
-        pdf_text = extract_text_from_pdf(temp_path)
-
-        # Clean up temp file
-        os.unlink(temp_path)
+        pdf_text = extract_text_from_pdf(pdf_path)
 
         if not pdf_text or len(pdf_text.strip()) < 100:
+            # Clean up if extraction fails
+            if os.path.exists(pdf_path):
+                os.unlink(pdf_path)
             return jsonify({
                 'error': 'Could not extract sufficient text from the PDF.'
             }), 400
@@ -602,6 +612,7 @@ def upload_file():
 
         return jsonify({
             'success': True,
+            'pdf_id': pdf_id,
             'filename': filename,
             'extracted_info': extracted_info,
             'parsed_data': parsed_data,
@@ -910,6 +921,22 @@ def send_email():
         return jsonify(result)
     else:
         return jsonify(result), 500
+
+
+@app.route('/pdf/<pdf_id>')
+def serve_pdf(pdf_id):
+    """Serve uploaded PDF for viewer"""
+    # Validate UUID format to prevent path traversal
+    try:
+        uuid.UUID(pdf_id)
+    except ValueError:
+        return jsonify({'error': 'Invalid PDF ID'}), 400
+
+    pdf_path = get_pdf_path(pdf_id)
+    if not os.path.exists(pdf_path):
+        return jsonify({'error': 'PDF not found'}), 404
+
+    return send_file(pdf_path, mimetype='application/pdf')
 
 
 @app.route('/health')
