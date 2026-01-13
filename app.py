@@ -48,10 +48,22 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def extract_signal(text):
+    """
+    Extract the signal tag from a value string.
+    Returns (signal, clean_value) tuple.
+    """
+    signal_match = re.match(r'\[(\w+)\]\s*(.*)$', text.strip())
+    if signal_match:
+        return signal_match.group(1).upper(), signal_match.group(2).strip()
+    return 'EXPLICIT', text.strip()  # Default to EXPLICIT if no signal found
+
+
 def parse_extracted_data(extracted_text):
     """
     Parse the extracted text into structured JSON for the frontend.
     This enables charting and structured display.
+    Now includes confidence scoring based on extraction signals.
     """
     data = {
         'customer_name': None,
@@ -74,16 +86,22 @@ def parse_extracted_data(extracted_text):
         'raw_text': extracted_text
     }
 
+    # Track extraction signals for confidence calculation
+    signals = {}
+
     try:
-        # Extract customer name
+        # Extract customer name (with signal)
         customer_match = re.search(r'1\.1 Customer Legal Name:\s*(.+?)(?:\n|$)', extracted_text)
         if customer_match:
-            data['customer_name'] = customer_match.group(1).strip()
+            signal, value = extract_signal(customer_match.group(1))
+            signals['customer_name'] = signal
+            data['customer_name'] = value
 
-        # Extract point of contact
+        # Extract point of contact (with signal)
         poc_match = re.search(r'1\.2 Point of Contact:\s*(.+?)(?:\n|$)', extracted_text)
         if poc_match:
-            poc_text = poc_match.group(1).strip()
+            signal, poc_text = extract_signal(poc_match.group(1))
+            signals['point_of_contact'] = signal
             email_match = re.search(r'<([^>]+)>', poc_text)
             if email_match:
                 data['point_of_contact']['email'] = email_match.group(1)
@@ -91,10 +109,11 @@ def parse_extracted_data(extracted_text):
             else:
                 data['point_of_contact']['name'] = poc_text
 
-        # Extract billing contact
+        # Extract billing contact (with signal)
         billing_match = re.search(r'1\.3 Billing Contact:\s*(.+?)(?:\n|$)', extracted_text)
         if billing_match:
-            billing_text = billing_match.group(1).strip()
+            signal, billing_text = extract_signal(billing_match.group(1))
+            signals['billing_contact'] = signal
             email_match = re.search(r'<([^>]+)>', billing_text)
             if email_match:
                 data['billing_contact']['email'] = email_match.group(1)
@@ -102,26 +121,36 @@ def parse_extracted_data(extracted_text):
             else:
                 data['billing_contact']['name'] = billing_text
 
-        # Extract subscription dates
+        # Extract subscription dates (with signals)
         start_match = re.search(r'Start Date:\s*(.+?)(?:\n|$)', extracted_text)
         if start_match:
-            data['subscription_start'] = start_match.group(1).strip()
+            signal, value = extract_signal(start_match.group(1))
+            signals['subscription_start'] = signal
+            data['subscription_start'] = value
 
         end_match = re.search(r'End Date:\s*(.+?)(?:\n|$)', extracted_text)
         if end_match:
-            data['subscription_end'] = end_match.group(1).strip()
+            signal, value = extract_signal(end_match.group(1))
+            signals['subscription_end'] = signal
+            data['subscription_end'] = value
 
         duration_match = re.search(r'Duration:\s*(.+?)(?:\n|$)', extracted_text)
         if duration_match:
-            data['duration'] = duration_match.group(1).strip()
+            signal, value = extract_signal(duration_match.group(1))
+            signals['duration'] = signal
+            data['duration'] = value
 
-        # Extract annual fees (Year 1, Year 2, etc.)
-        year_pattern = re.compile(r'Year\s*(\d+):\s*\$?([\d,]+(?:\.\d{2})?)\s*(\w+)?', re.IGNORECASE)
+        # Extract annual fees (Year 1, Year 2, etc.) - with signal detection
+        # Pattern: Year 1: [SIGNAL] $amount CURRENCY
+        year_pattern = re.compile(r'Year\s*(\d+):\s*(?:\[(\w+)\])?\s*\$?([\d,]+(?:\.\d{2})?)\s*(\w+)?', re.IGNORECASE)
+        annual_fee_signals = []
         for match in year_pattern.finditer(extracted_text):
             year_num = int(match.group(1))
-            amount_str = match.group(2).replace(',', '')
+            signal = match.group(2).upper() if match.group(2) else 'EXPLICIT'
+            annual_fee_signals.append(signal)
+            amount_str = match.group(3).replace(',', '')
             amount = float(amount_str)
-            currency = match.group(3) if match.group(3) else 'CAD'
+            currency = match.group(4) if match.group(4) else 'CAD'
             data['annual_fees'].append({
                 'year': year_num,
                 'amount': amount,
@@ -129,19 +158,26 @@ def parse_extracted_data(extracted_text):
             })
             data['currency'] = currency
 
+        # Use most common signal for annual fees
+        if annual_fee_signals:
+            signals['annual_fees'] = max(set(annual_fee_signals), key=annual_fee_signals.count)
+
         # Sort annual fees by year
         data['annual_fees'].sort(key=lambda x: x['year'])
 
-        # Extract onboarding fee
-        onboarding_match = re.search(r'One-Time Fee:\s*\$?([\d,]+(?:\.\d{2})?)\s*(\w+)?', extracted_text)
+        # Extract onboarding fee (with signal)
+        onboarding_match = re.search(r'One-Time Fee:\s*(?:\[(\w+)\])?\s*\$?([\d,]+(?:\.\d{2})?)\s*(\w+)?', extracted_text)
         if onboarding_match:
-            amount_str = onboarding_match.group(1).replace(',', '')
+            signals['onboarding_fee'] = onboarding_match.group(1).upper() if onboarding_match.group(1) else 'EXPLICIT'
+            amount_str = onboarding_match.group(2).replace(',', '')
             data['onboarding_fee'] = float(amount_str)
 
-        # Extract onboarding terms
+        # Extract onboarding terms (with signal)
         terms_match = re.search(r'Payment Terms:\s*(.+?)(?:\n|$)', extracted_text)
         if terms_match:
-            data['onboarding_terms'] = terms_match.group(1).strip()
+            signal, value = extract_signal(terms_match.group(1))
+            signals['onboarding_terms'] = signal
+            data['onboarding_terms'] = value
 
         # Calculate total contract value
         total = sum(fee['amount'] for fee in data['annual_fees'])
@@ -159,33 +195,235 @@ def parse_extracted_data(extracted_text):
         if terms_section:
             data['additional_terms'] = terms_section.group(1).strip()
 
-        # Extract signatures
-        customer_sig = re.search(r'5\.1 Customer:\s*([^,]+),\s*([^—]+)—\s*Signed:\s*(.+?)(?:\n|$)', extracted_text)
+        # Extract signatures (with signals)
+        customer_sig = re.search(r'5\.1 Customer:\s*(?:\[(\w+)\])?\s*([^,]+),\s*([^—]+)—\s*Signed:\s*(.+?)(?:\n|$)', extracted_text)
         if customer_sig:
+            signals['signature_customer'] = customer_sig.group(1).upper() if customer_sig.group(1) else 'EXPLICIT'
             data['signatures']['customer'] = {
-                'name': customer_sig.group(1).strip(),
-                'title': customer_sig.group(2).strip(),
-                'date': customer_sig.group(3).strip()
+                'name': customer_sig.group(2).strip(),
+                'title': customer_sig.group(3).strip(),
+                'date': customer_sig.group(4).strip()
             }
 
-        vendor_sig = re.search(r'5\.2 Vendor:\s*([^,]+),\s*([^—]+)—\s*Signed:\s*(.+?)(?:\n|$)', extracted_text)
+        vendor_sig = re.search(r'5\.2 Vendor:\s*(?:\[(\w+)\])?\s*([^,]+),\s*([^—]+)—\s*Signed:\s*(.+?)(?:\n|$)', extracted_text)
         if vendor_sig:
+            signals['signature_vendor'] = vendor_sig.group(1).upper() if vendor_sig.group(1) else 'EXPLICIT'
             data['signatures']['vendor'] = {
-                'name': vendor_sig.group(1).strip(),
-                'title': vendor_sig.group(2).strip(),
-                'date': vendor_sig.group(3).strip()
+                'name': vendor_sig.group(2).strip(),
+                'title': vendor_sig.group(3).strip(),
+                'date': vendor_sig.group(4).strip()
             }
+
+        # Calculate confidence scores for all fields
+        data['confidence'] = calculate_all_confidence_scores(data, signals)
 
     except Exception as e:
         print(f"Error parsing extracted data: {e}")
+        # Still return data without confidence if calculation fails
+        data['confidence'] = {}
 
     return data
+
+
+# ============================================
+# CONFIDENCE SCORING FUNCTIONS
+# ============================================
+
+def calculate_format_score(field_name, value):
+    """
+    Check if value matches expected format patterns.
+    Returns 0-25 points based on format compliance.
+    """
+    if value is None or value == "Not specified" or value == "":
+        return 0
+
+    value_str = str(value)
+
+    format_patterns = {
+        'customer_name': r'^[A-Z][a-zA-Z0-9\s\.\,\&\-\']+$',  # Capitalized company name
+        'subscription_start': r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}',
+        'subscription_end': r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}',
+        'duration': r'\d+\s*(year|month|day)s?',
+        'email': r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$',
+        'currency_amount': r'^\$?[\d,]+(?:\.\d{2})?$',
+    }
+
+    # Map field names to pattern types
+    field_to_pattern = {
+        'customer_name': 'customer_name',
+        'subscription_start': 'subscription_start',
+        'subscription_end': 'subscription_end',
+        'duration': 'duration',
+        'point_of_contact_email': 'email',
+        'billing_contact_email': 'email',
+        'onboarding_fee': 'currency_amount',
+        'annual_fees': 'currency_amount',
+    }
+
+    pattern_key = field_to_pattern.get(field_name)
+    if pattern_key and pattern_key in format_patterns:
+        pattern = format_patterns[pattern_key]
+        if re.search(pattern, value_str, re.IGNORECASE):
+            return 25
+        return 12  # Partial credit for non-matching but present
+
+    return 20  # Default score for fields without specific patterns
+
+
+def calculate_consistency_score(field_name, value, parsed_data):
+    """
+    Check cross-field consistency.
+    Returns 0-25 points based on consistency with related fields.
+    """
+    if value is None or value == "Not specified" or value == "":
+        return 0
+
+    # Duration consistency with dates
+    if field_name == 'duration':
+        start = parsed_data.get('subscription_start')
+        end = parsed_data.get('subscription_end')
+        if start and end and start != "Not specified" and end != "Not specified":
+            return 25  # Both dates present, assume duration is consistent
+        return 15  # Partial if dates missing
+
+    # Start/End date consistency
+    if field_name in ['subscription_start', 'subscription_end']:
+        other_field = 'subscription_end' if field_name == 'subscription_start' else 'subscription_start'
+        other_value = parsed_data.get(other_field)
+        if other_value and other_value != "Not specified":
+            return 25  # Both dates present
+        return 18  # Only one date present
+
+    # Total value consistency with fees
+    if field_name == 'total_contract_value':
+        fees = parsed_data.get('annual_fees', [])
+        onboarding = parsed_data.get('onboarding_fee', 0) or 0
+        if fees:
+            calculated = sum(f.get('amount', 0) for f in fees) + onboarding
+            if abs(calculated - float(value)) < 1:  # Within $1
+                return 25
+            return 10  # Mismatch
+        return 15  # No fees to compare
+
+    # Customer name consistency (appears in title)
+    if field_name == 'customer_name':
+        return 22  # Usually reliable when extracted
+
+    # Contact fields
+    if field_name in ['point_of_contact', 'billing_contact']:
+        return 20  # Contact info is usually standalone
+
+    # Signatures
+    if field_name.startswith('signature'):
+        return 20  # Signature data is usually self-contained
+
+    return 20  # Default consistency score
+
+
+def calculate_confidence(field_name, value, signal, parsed_data):
+    """
+    Calculate confidence score for a field (0-100).
+
+    Factors:
+    - Field presence (50%): Based on extraction signal from Claude
+    - Format matching (25%): Does the value match expected format?
+    - Cross-reference (25%): Is the value consistent with related fields?
+    """
+    if value is None or value == "Not specified" or value == "":
+        return None  # Don't show confidence for missing fields
+
+    score = 0
+
+    # Factor 1: Field Presence (50 points max)
+    presence_scores = {
+        'EXPLICIT': 50,
+        'INFERRED': 35,
+        'PARTIAL': 25,
+        'MULTIPLE': 30,
+        'NOT_FOUND': 0
+    }
+    score += presence_scores.get(signal, 35)  # Default to 35 if signal unclear
+
+    # Factor 2: Format Matching (25 points max)
+    score += calculate_format_score(field_name, value)
+
+    # Factor 3: Cross-Reference Consistency (25 points max)
+    score += calculate_consistency_score(field_name, value, parsed_data)
+
+    return min(100, max(0, score))
+
+
+def calculate_all_confidence_scores(parsed_data, signals):
+    """
+    Calculate confidence scores for all extracted fields.
+    Returns a dict of field_name -> confidence score (0-100).
+    """
+    confidence = {}
+
+    # Simple fields
+    simple_fields = [
+        'customer_name',
+        'subscription_start',
+        'subscription_end',
+        'duration',
+        'onboarding_fee',
+    ]
+
+    for field in simple_fields:
+        value = parsed_data.get(field)
+        signal = signals.get(field, 'EXPLICIT')
+        conf = calculate_confidence(field, value, signal, parsed_data)
+        if conf is not None:
+            confidence[field] = conf
+
+    # Contact fields (nested)
+    for contact_type in ['point_of_contact', 'billing_contact']:
+        contact = parsed_data.get(contact_type, {})
+        if contact.get('name') or contact.get('email'):
+            signal = signals.get(contact_type, 'EXPLICIT')
+            # Use name for confidence calculation
+            value = contact.get('name') or contact.get('email')
+            conf = calculate_confidence(contact_type, value, signal, parsed_data)
+            if conf is not None:
+                confidence[contact_type] = conf
+
+    # Annual fees (aggregate)
+    if parsed_data.get('annual_fees'):
+        signal = signals.get('annual_fees', 'EXPLICIT')
+        # Use first fee amount for format check
+        first_fee = parsed_data['annual_fees'][0] if parsed_data['annual_fees'] else None
+        if first_fee:
+            conf = calculate_confidence('annual_fees', first_fee.get('amount'), signal, parsed_data)
+            if conf is not None:
+                confidence['annual_fees'] = conf
+
+    # Total contract value (calculated field - always INFERRED)
+    if parsed_data.get('total_contract_value'):
+        conf = calculate_confidence(
+            'total_contract_value',
+            parsed_data['total_contract_value'],
+            'INFERRED',  # Always inferred since it's calculated
+            parsed_data
+        )
+        if conf is not None:
+            confidence['total_contract_value'] = conf
+
+    # Signatures
+    for sig_type in ['customer', 'vendor']:
+        sig = parsed_data.get('signatures', {}).get(sig_type, {})
+        if sig.get('name'):
+            signal = signals.get(f'signature_{sig_type}', 'EXPLICIT')
+            conf = calculate_confidence(f'signature_{sig_type}', sig.get('name'), signal, parsed_data)
+            if conf is not None:
+                confidence[f'signature_{sig_type}'] = conf
+
+    return confidence
 
 
 def extract_contract_info(text):
     """
     Send the PDF text to Claude and ask it to extract key information.
-    V2: Precise extraction with numbered sections for MSA Order Forms.
+    V3: Precise extraction with numbered sections and confidence signals.
     """
 
     prompt = """You are a contract extraction specialist. Your task is to extract SPECIFIC information from an MSA (Master Service Agreement) Order Form and output it in a precise, structured format.
@@ -197,14 +435,24 @@ CRITICAL INSTRUCTIONS:
 4. If a field is not found or is blank, write "Not specified"
 5. Copy footnotes VERBATIM - do not summarize
 
+EXTRACTION SIGNALS (REQUIRED):
+For EACH field value, include a signal in square brackets indicating how you found it:
+- [EXPLICIT]: Value found exactly as labeled in the document (e.g., "Customer Name: Acme Corp")
+- [INFERRED]: Value derived from context or calculation (e.g., duration calculated from dates)
+- [PARTIAL]: Only some information found (e.g., name without email for contacts)
+- [MULTIPLE]: Multiple conflicting values found; using the most recent/prominent one
+- [NOT_FOUND]: Field not present in document - use "Not specified" as value
+
+Place the signal BEFORE the value on the same line.
+
 OUTPUT FORMAT (use this EXACT structure - NO horizontal lines or dividers):
 
 CONTRACT SUMMARY OF [CUSTOMER NAME]
 
 1. CONTACT INFORMATION
-   1.1 Customer Legal Name: [Extract the customer/company name]
-   1.2 Point of Contact: [Name] <[email]>
-   1.3 Billing Contact: [Name] <[email]>
+   1.1 Customer Legal Name: [SIGNAL] [Extract the customer/company name]
+   1.2 Point of Contact: [SIGNAL] [Name] <[email]>
+   1.3 Billing Contact: [SIGNAL] [Name] <[email]>
 
 2. SERVICES & MODULES
    2.1 Included Modules:
@@ -212,19 +460,19 @@ CONTRACT SUMMARY OF [CUSTOMER NAME]
 
 3. CONTRACT TERMS & FEES
    3.1 Subscription Period
-       Start Date: [Date]
-       End Date: [Date]
-       Duration: [Calculate total years/months]
+       Start Date: [SIGNAL] [Date]
+       End Date: [SIGNAL] [Date]
+       Duration: [SIGNAL] [Calculate total years/months]
 
    3.2 Annual Software Fees
-       Year 1: $[amount] [CURRENCY]
-       Year 2: $[amount] [CURRENCY]
-       Year 3: $[amount] [CURRENCY]
+       Year 1: [SIGNAL] $[amount] [CURRENCY]
+       Year 2: [SIGNAL] $[amount] [CURRENCY]
+       Year 3: [SIGNAL] $[amount] [CURRENCY]
        [Continue for all years in contract - ONLY non-crossed-out amounts]
 
    3.3 Onboarding Services
-       Payment Terms: [e.g., "Invoiced on Signing Date net 30"]
-       One-Time Fee: $[amount] [CURRENCY]
+       Payment Terms: [SIGNAL] [e.g., "Invoiced on Signing Date net 30"]
+       One-Time Fee: [SIGNAL] $[amount] [CURRENCY]
 
    3.4 Notes & Conditions
        [Copy ANY footnotes, asterisk notes, or conditions EXACTLY as written]
@@ -233,8 +481,14 @@ CONTRACT SUMMARY OF [CUSTOMER NAME]
    This Order Form is entered into pursuant to the Master Service Agreement dated [DATE].
 
 5. SIGNATURES
-   5.1 Customer: [Name], [Title] — Signed: [Date]
-   5.2 Vendor: [Name], [Title] — Signed: [Date]
+   5.1 Customer: [SIGNAL] [Name], [Title] — Signed: [Date]
+   5.2 Vendor: [SIGNAL] [Name], [Title] — Signed: [Date]
+
+EXAMPLE OUTPUT:
+   1.1 Customer Legal Name: [EXPLICIT] Acme Corporation Inc.
+   Start Date: [EXPLICIT] January 1, 2024
+   Duration: [INFERRED] 3 years
+   1.2 Point of Contact: [PARTIAL] John Smith <Not specified>
 
 ---
 
@@ -249,7 +503,8 @@ Extract the information following the EXACT format above. Remember:
 - Copy footnotes VERBATIM
 - Use "Not specified" for missing fields
 - Do NOT include horizontal line dividers (═══ or ───)
-- For Section 4, ONLY output the MSA reference date - nothing else"""
+- For Section 4, ONLY output the MSA reference date - nothing else
+- ALWAYS include the extraction signal [EXPLICIT], [INFERRED], [PARTIAL], [MULTIPLE], or [NOT_FOUND] before each value"""
 
     message = client.messages.create(
         model="claude-sonnet-4-20250514",

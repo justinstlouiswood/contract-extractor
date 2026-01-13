@@ -192,7 +192,180 @@ const Icons = {
             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
         </svg>
+    ),
+    HelpCircle: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+    ),
+    Pencil: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+            <path d="m15 5 4 4"/>
+        </svg>
+    ),
+    Sparkle: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+            <path d="M5 3v4"/>
+            <path d="M19 17v4"/>
+            <path d="M3 5h4"/>
+            <path d="M17 19h4"/>
+        </svg>
     )
+};
+
+// ============================================
+// CONFIDENCE SCORING COMPONENTS
+// ============================================
+
+// Get confidence badge color based on score
+const getConfidenceColor = (score) => {
+    if (score >= 85) return '#8fbc8f';  // Muted green
+    if (score >= 60) return '#d4a574';  // Amber
+    return '#c97c7c';                    // Red
+};
+
+// Get confidence label for tooltip
+const getConfidenceLabel = (score) => {
+    if (score >= 85) return 'High confidence';
+    if (score >= 60) return 'Medium confidence - verify this field';
+    return 'Low confidence - manual review required';
+};
+
+// Confidence Badge Component
+const ConfidenceBadge = ({ score }) => {
+    if (score === undefined || score === null) return null;
+
+    return (
+        <span
+            className="confidence-badge"
+            style={{ backgroundColor: getConfidenceColor(score) }}
+            title={getConfidenceLabel(score)}
+        >
+            {score}%
+        </span>
+    );
+};
+
+// Confidence Help Modal Component
+const ConfidenceHelpModal = ({ isOpen, onClose }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content confidence-help-modal" onClick={e => e.stopPropagation()}>
+                <div className="modal-header">
+                    <h2 className="modal-title">How Confidence Scoring Works</h2>
+                    <button className="modal-close" onClick={onClose}>
+                        <Icons.X />
+                    </button>
+                </div>
+                <div className="modal-body">
+                    <p className="confidence-help-intro">
+                        Each extracted value has a confidence score based on three factors:
+                    </p>
+
+                    <div className="confidence-factor">
+                        <div className="confidence-factor-header">
+                            <span className="confidence-factor-weight">50%</span>
+                            <span className="confidence-factor-title">Field Presence</span>
+                        </div>
+                        <p>Was the field found explicitly labeled in the document, or inferred from context?</p>
+                    </div>
+
+                    <div className="confidence-factor">
+                        <div className="confidence-factor-header">
+                            <span className="confidence-factor-weight">25%</span>
+                            <span className="confidence-factor-title">Format Match</span>
+                        </div>
+                        <p>Does the extracted value match the expected format (dates, emails, currency)?</p>
+                    </div>
+
+                    <div className="confidence-factor">
+                        <div className="confidence-factor-header">
+                            <span className="confidence-factor-weight">25%</span>
+                            <span className="confidence-factor-title">Cross-Reference</span>
+                        </div>
+                        <p>Is the value consistent with related fields (e.g., dates align with duration)?</p>
+                    </div>
+
+                    <div className="confidence-legend">
+                        <div className="confidence-legend-item">
+                            <span className="confidence-badge" style={{backgroundColor: '#8fbc8f'}}>85%+</span>
+                            <span>High confidence - trust this value</span>
+                        </div>
+                        <div className="confidence-legend-item">
+                            <span className="confidence-badge" style={{backgroundColor: '#d4a574'}}>60-84%</span>
+                            <span>Medium confidence - verify this field</span>
+                        </div>
+                        <div className="confidence-legend-item">
+                            <span className="confidence-badge" style={{backgroundColor: '#c97c7c'}}>&lt;60%</span>
+                            <span>Low confidence - manual review required</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Confidence Help Trigger Button
+const ConfidenceHelpTrigger = ({ onClick }) => (
+    <button className="confidence-help-trigger" onClick={onClick} title="How confidence scoring works">
+        <Icons.HelpCircle />
+        <span>How confidence works</span>
+    </button>
+);
+
+// Source Tags Help Modal - explains what each extraction signal means
+const SourceTagsHelpModal = ({ isOpen, onClose }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content source-tags-help-modal" onClick={e => e.stopPropagation()}>
+                <div className="modal-header">
+                    <h2 className="modal-title">Source Tags Explained</h2>
+                    <button className="modal-close" onClick={onClose}>
+                        <Icons.X />
+                    </button>
+                </div>
+                <div className="modal-body">
+                    <p className="source-tags-intro">
+                        Each value shows how it was extracted from the document:
+                    </p>
+
+                    <div className="source-tag-item">
+                        <span className="source-tag" style={{ backgroundColor: '#8fbc8f' }}>EXPLICIT</span>
+                        <span className="source-tag-desc">Found directly labeled in the document</span>
+                    </div>
+
+                    <div className="source-tag-item">
+                        <span className="source-tag" style={{ backgroundColor: '#4a7c59' }}>MULTIPLE</span>
+                        <span className="source-tag-desc">Found in multiple locations - verified</span>
+                    </div>
+
+                    <div className="source-tag-item">
+                        <span className="source-tag" style={{ backgroundColor: '#c97c7c' }}>INFERRED</span>
+                        <span className="source-tag-desc">Derived from context - review suggested</span>
+                    </div>
+
+                    <div className="source-tag-item">
+                        <span className="source-tag" style={{ backgroundColor: '#d4a574' }}>PARTIAL</span>
+                        <span className="source-tag-desc">Only some information was found</span>
+                    </div>
+
+                    <div className="source-tag-item">
+                        <span className="source-tag" style={{ backgroundColor: '#999999' }}>NOT_FOUND</span>
+                        <span className="source-tag-desc">Field not present in the document</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 // Format currency - returns "$X,XXX" format (no currency prefix like CA$ or US$)
@@ -201,6 +374,177 @@ const formatCurrency = (amount) => {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0
     }).format(amount);
+};
+
+// Sanitize filename - remove special characters
+const sanitizeFilename = (name) => {
+    if (!name) return 'contract';
+    return name.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+};
+
+// Get tag color based on signal type
+const getTagColor = (signal) => {
+    const colors = {
+        'MULTIPLE': '#4a7c59',  // Dark green - highest confidence (verified multiple times)
+        'EXPLICIT': '#8fbc8f',  // Muted green - high confidence
+        'INFERRED': '#c97c7c',  // Muted red/coral - lower confidence
+        'PARTIAL': '#d4a574',   // Muted amber
+        'NOT_FOUND': '#999999'  // Gray
+    };
+    return colors[signal] || '#999999';
+};
+
+// Parse text and return array of segments (text and tags)
+const parseExtractedText = (text) => {
+    const tagRegex = /\[(EXPLICIT|INFERRED|PARTIAL|MULTIPLE|NOT_FOUND)\]/g;
+    const segments = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = tagRegex.exec(text)) !== null) {
+        // Add text before the tag
+        if (match.index > lastIndex) {
+            segments.push({ type: 'text', content: text.slice(lastIndex, match.index) });
+        }
+        // Add the tag
+        segments.push({ type: 'tag', signal: match[1] });
+        lastIndex = match.index + match[0].length;
+    }
+    // Add remaining text
+    if (lastIndex < text.length) {
+        segments.push({ type: 'text', content: text.slice(lastIndex) });
+    }
+    return segments;
+};
+
+// Strip source tags from text for clean export
+const stripSourceTags = (text) => {
+    return text.replace(/\[(?:EXPLICIT|INFERRED|PARTIAL|MULTIPLE|NOT_FOUND)\]\s*/g, '');
+};
+
+// Component to render extracted text with optional styled tags
+const ExtractedTextDisplay = ({ text, showTags }) => {
+    if (!showTags) {
+        // Clean view - strip all tags
+        return <pre className="extracted-content">{stripSourceTags(text)}</pre>;
+    }
+
+    // Parse and render with styled tags
+    const segments = parseExtractedText(text);
+
+    return (
+        <pre className="extracted-content">
+            {segments.map((segment, idx) => {
+                if (segment.type === 'tag') {
+                    return (
+                        <span
+                            key={idx}
+                            className="source-tag"
+                            style={{ backgroundColor: getTagColor(segment.signal) }}
+                        >
+                            {segment.signal}
+                        </span>
+                    );
+                }
+                return <span key={idx}>{segment.content}</span>;
+            })}
+        </pre>
+    );
+};
+
+// Trigger file download
+const downloadFile = (content, filename, mimeType) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+// Build export data object from parsed_data
+const buildExportData = (parsed_data, editedFields = {}) => {
+    const currency = parsed_data.currency || 'CAD';
+    const formatFee = (amount) => amount ? formatCurrency(amount) + ' ' + currency : 'Not specified';
+
+    // Helper to get edited or original value
+    const get = (key, original) => editedFields.hasOwnProperty(key) ? editedFields[key] : original;
+
+    return {
+        contractDetails: {
+            customer: get('customer_name', parsed_data.customer_name) || 'Not specified',
+            duration: get('duration', parsed_data.duration) || 'Not specified',
+            startDate: get('subscription_start', parsed_data.subscription_start) || 'Not specified',
+            endDate: get('subscription_end', parsed_data.subscription_end) || 'Not specified',
+            contact: get('point_of_contact_name', parsed_data.point_of_contact?.name) || 'Not specified',
+            email: get('point_of_contact_email', parsed_data.point_of_contact?.email) || 'Not specified'
+        },
+        termsAndFees: {
+            onboardingFee: get('onboarding_fee', formatFee(parsed_data.onboarding_fee)),
+            ...(parsed_data.annual_fees || []).reduce((acc, fee) => {
+                const feeKey = `annual_fee_${fee.year}`;
+                acc[`year${fee.year}Fee`] = get(feeKey, formatFee(fee.amount));
+                return acc;
+            }, {}),
+            customerSignature: get('signature_customer', parsed_data.signatures?.customer?.name
+                ? `${parsed_data.signatures.customer.name}${parsed_data.signatures.customer.date ? ` (${parsed_data.signatures.customer.date})` : ''}`
+                : 'Not specified'),
+            vendorSignature: get('signature_vendor', parsed_data.signatures?.vendor?.name
+                ? `${parsed_data.signatures.vendor.name}${parsed_data.signatures.vendor.date ? ` (${parsed_data.signatures.vendor.date})` : ''}`
+                : 'Not specified')
+        }
+    };
+};
+
+// Export as CSV
+const exportToCSV = (parsed_data, editedFields = {}) => {
+    const data = buildExportData(parsed_data, editedFields);
+    const rows = [['Category', 'Field', 'Value']];
+
+    // Contract Details
+    rows.push(['Contract Details', 'Customer', data.contractDetails.customer]);
+    rows.push(['Contract Details', 'Duration', data.contractDetails.duration]);
+    rows.push(['Contract Details', 'Start Date', data.contractDetails.startDate]);
+    rows.push(['Contract Details', 'End Date', data.contractDetails.endDate]);
+    rows.push(['Contract Details', 'Contact', data.contractDetails.contact]);
+    rows.push(['Contract Details', 'Email', data.contractDetails.email]);
+
+    // Terms & Fees
+    rows.push(['Terms & Fees', 'Onboarding Fee', data.termsAndFees.onboardingFee]);
+    Object.keys(data.termsAndFees).forEach(key => {
+        if (key.startsWith('year')) {
+            const yearNum = key.match(/year(\d+)/)[1];
+            rows.push(['Terms & Fees', `Year ${yearNum} Fee`, data.termsAndFees[key]]);
+        }
+    });
+    rows.push(['Terms & Fees', 'Customer Signature', data.termsAndFees.customerSignature]);
+    rows.push(['Terms & Fees', 'Vendor Signature', data.termsAndFees.vendorSignature]);
+
+    // Escape CSV values
+    const csvContent = rows.map(row =>
+        row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+
+    const customerName = editedFields.hasOwnProperty('customer_name') ? editedFields.customer_name : parsed_data.customer_name;
+    const filename = sanitizeFilename(customerName) + '_extraction.csv';
+    downloadFile(csvContent, filename, 'text/csv;charset=utf-8;');
+};
+
+// Export as JSON
+const exportToJSON = (parsed_data, editedFields = {}) => {
+    const data = buildExportData(parsed_data, editedFields);
+    const exportObj = {
+        exportDate: new Date().toISOString(),
+        ...data
+    };
+
+    const jsonContent = JSON.stringify(exportObj, null, 2);
+    const customerName = editedFields.hasOwnProperty('customer_name') ? editedFields.customer_name : parsed_data.customer_name;
+    const filename = sanitizeFilename(customerName) + '_extraction.json';
+    downloadFile(jsonContent, filename, 'application/json');
 };
 
 // Top Bar Component - Only shows on non-home views
@@ -614,16 +958,88 @@ const RevenueChart = ({ annualFees, onboardingFee, currency, theme }) => {
 };
 
 // Data Row Component for two-column grid
-const DataRow = ({ label, value, isLink }) => (
-    <div className="data-row">
-        <span className="data-label">{label}</span>
-        {isLink ? (
-            <a href={`mailto:${value}`} className="data-value link">{value}</a>
-        ) : (
-            <span className="data-value">{value || '—'}</span>
-        )}
-    </div>
-);
+const DataRow = ({ label, value, isLink, confidence }) => {
+    const hasValue = value && value !== '—' && value !== 'Not specified';
+
+    return (
+        <div className="data-row">
+            <span className="data-label">{label}</span>
+            <div className="data-value-wrapper">
+                {isLink ? (
+                    <a href={`mailto:${value}`} className="data-value link">{value}</a>
+                ) : (
+                    <span className="data-value">{value || '—'}</span>
+                )}
+                {hasValue && confidence !== undefined && (
+                    <ConfidenceBadge score={confidence} />
+                )}
+            </div>
+        </div>
+    );
+};
+
+// Editable Data Row Component - supports inline editing
+const EditableDataRow = ({
+    label,
+    value,
+    fieldKey,
+    isLink,
+    confidence,
+    isEdited,
+    editingField,
+    editValue,
+    onStartEdit,
+    onSaveEdit,
+    onCancelEdit,
+    onEditChange
+}) => {
+    const hasValue = value && value !== '—' && value !== 'Not specified';
+    const isCurrentlyEditing = editingField === fieldKey;
+
+    return (
+        <div className={`data-row ${isCurrentlyEditing ? 'editing' : ''}`}>
+            <span className="data-label">{label}</span>
+            <div className="data-value-wrapper">
+                {isCurrentlyEditing ? (
+                    <div className="edit-mode">
+                        <input
+                            type="text"
+                            className="edit-input"
+                            value={editValue}
+                            onChange={(e) => onEditChange(e.target.value)}
+                            autoFocus
+                        />
+                        <button className="edit-btn save" onClick={() => onSaveEdit(fieldKey)}>
+                            Save
+                        </button>
+                        <button className="edit-btn cancel" onClick={onCancelEdit}>
+                            Cancel
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        {isLink ? (
+                            <a href={`mailto:${value}`} className="data-value link">{value}</a>
+                        ) : (
+                            <span className="data-value">{value || '—'}</span>
+                        )}
+                        {hasValue && confidence !== undefined && (
+                            <ConfidenceBadge score={confidence} />
+                        )}
+                        <button
+                            className="edit-pencil"
+                            onClick={() => onStartEdit(fieldKey, value)}
+                            title="Edit this field"
+                        >
+                            <Icons.Pencil />
+                        </button>
+                        {isEdited && <span className="edited-tag">Edited</span>}
+                    </>
+                )}
+            </div>
+        </div>
+    );
+};
 
 // Email Section Component - Primary action for sending contract details
 const EmailSection = ({ contractData, extractedInfo, gmailAuth, onAuthClick, onSendEmail }) => {
@@ -806,6 +1222,54 @@ const EmailSection = ({ contractData, extractedInfo, gmailAuth, onAuthClick, onS
 // Contract Detail View Component
 const ContractDetailView = ({ data, onCopy, theme, gmailAuth, onGmailAuthClick, onSendEmail }) => {
     const parsed_data = data.parsed_data;
+    const confidence = parsed_data.confidence || {};
+    const [showConfidenceHelp, setShowConfidenceHelp] = useState(false);
+
+    // Source tags toggle state (true = show tags, false = clean view)
+    const [showSourceTags, setShowSourceTags] = useState(true);
+
+    // Source tags help modal state
+    const [showSourceTagsHelp, setShowSourceTagsHelp] = useState(false);
+
+    // Edit state management
+    const [editingField, setEditingField] = useState(null);
+    const [editValue, setEditValue] = useState('');
+    const [editedFields, setEditedFields] = useState({});
+
+    // Get current value (edited or original)
+    const getValue = (fieldKey, originalValue) => {
+        return editedFields.hasOwnProperty(fieldKey) ? editedFields[fieldKey] : originalValue;
+    };
+
+    // Check if field was edited
+    const isFieldEdited = (fieldKey) => editedFields.hasOwnProperty(fieldKey);
+
+    // Start editing a field
+    const handleStartEdit = (fieldKey, currentValue) => {
+        setEditingField(fieldKey);
+        setEditValue(currentValue || '');
+    };
+
+    // Save edit
+    const handleSaveEdit = (fieldKey) => {
+        setEditedFields(prev => ({...prev, [fieldKey]: editValue}));
+        setEditingField(null);
+        setEditValue('');
+    };
+
+    // Cancel edit
+    const handleCancelEdit = () => {
+        setEditingField(null);
+        setEditValue('');
+    };
+
+    // Handle input change
+    const handleEditChange = (value) => {
+        setEditValue(value);
+    };
+
+    // Check if we have any confidence data to show
+    const hasConfidenceData = Object.keys(confidence).length > 0;
 
     return (
         <div className="contract-detail-view">
@@ -821,53 +1285,172 @@ const ContractDetailView = ({ data, onCopy, theme, gmailAuth, onGmailAuthClick, 
                 </div>
             )}
 
+            {/* Confidence Help Link */}
+            {hasConfidenceData && (
+                <div className="confidence-help-row">
+                    <ConfidenceHelpTrigger onClick={() => setShowConfidenceHelp(true)} />
+                </div>
+            )}
+
             {/* Two-Column Data Grid */}
             <div className="data-grid">
                 {/* Left Column - Contract Details */}
                 <div className="data-section">
                     <h3 className="data-section-title">Contract Details</h3>
-                    <DataRow label="Customer" value={parsed_data.customer_name} />
-                    <DataRow label="Duration" value={parsed_data.duration} />
-                    <DataRow label="Start Date" value={parsed_data.subscription_start} />
-                    <DataRow label="End Date" value={parsed_data.subscription_end} />
-                    {parsed_data.point_of_contact?.name && (
-                        <DataRow label="Contact" value={parsed_data.point_of_contact.name} />
+                    <EditableDataRow
+                        label="Customer"
+                        value={getValue('customer_name', parsed_data.customer_name)}
+                        fieldKey="customer_name"
+                        confidence={confidence.customer_name}
+                        isEdited={isFieldEdited('customer_name')}
+                        editingField={editingField}
+                        editValue={editValue}
+                        onStartEdit={handleStartEdit}
+                        onSaveEdit={handleSaveEdit}
+                        onCancelEdit={handleCancelEdit}
+                        onEditChange={handleEditChange}
+                    />
+                    <EditableDataRow
+                        label="Duration"
+                        value={getValue('duration', parsed_data.duration)}
+                        fieldKey="duration"
+                        confidence={confidence.duration}
+                        isEdited={isFieldEdited('duration')}
+                        editingField={editingField}
+                        editValue={editValue}
+                        onStartEdit={handleStartEdit}
+                        onSaveEdit={handleSaveEdit}
+                        onCancelEdit={handleCancelEdit}
+                        onEditChange={handleEditChange}
+                    />
+                    <EditableDataRow
+                        label="Start Date"
+                        value={getValue('subscription_start', parsed_data.subscription_start)}
+                        fieldKey="subscription_start"
+                        confidence={confidence.subscription_start}
+                        isEdited={isFieldEdited('subscription_start')}
+                        editingField={editingField}
+                        editValue={editValue}
+                        onStartEdit={handleStartEdit}
+                        onSaveEdit={handleSaveEdit}
+                        onCancelEdit={handleCancelEdit}
+                        onEditChange={handleEditChange}
+                    />
+                    <EditableDataRow
+                        label="End Date"
+                        value={getValue('subscription_end', parsed_data.subscription_end)}
+                        fieldKey="subscription_end"
+                        confidence={confidence.subscription_end}
+                        isEdited={isFieldEdited('subscription_end')}
+                        editingField={editingField}
+                        editValue={editValue}
+                        onStartEdit={handleStartEdit}
+                        onSaveEdit={handleSaveEdit}
+                        onCancelEdit={handleCancelEdit}
+                        onEditChange={handleEditChange}
+                    />
+                    {(parsed_data.point_of_contact?.name || isFieldEdited('point_of_contact_name')) && (
+                        <EditableDataRow
+                            label="Contact"
+                            value={getValue('point_of_contact_name', parsed_data.point_of_contact?.name)}
+                            fieldKey="point_of_contact_name"
+                            confidence={confidence.point_of_contact}
+                            isEdited={isFieldEdited('point_of_contact_name')}
+                            editingField={editingField}
+                            editValue={editValue}
+                            onStartEdit={handleStartEdit}
+                            onSaveEdit={handleSaveEdit}
+                            onCancelEdit={handleCancelEdit}
+                            onEditChange={handleEditChange}
+                        />
                     )}
-                    {parsed_data.point_of_contact?.email && (
-                        <DataRow label="Email" value={parsed_data.point_of_contact.email} isLink />
+                    {(parsed_data.point_of_contact?.email || isFieldEdited('point_of_contact_email')) && (
+                        <EditableDataRow
+                            label="Email"
+                            value={getValue('point_of_contact_email', parsed_data.point_of_contact?.email)}
+                            fieldKey="point_of_contact_email"
+                            isLink
+                            confidence={confidence.point_of_contact}
+                            isEdited={isFieldEdited('point_of_contact_email')}
+                            editingField={editingField}
+                            editValue={editValue}
+                            onStartEdit={handleStartEdit}
+                            onSaveEdit={handleSaveEdit}
+                            onCancelEdit={handleCancelEdit}
+                            onEditChange={handleEditChange}
+                        />
                     )}
                 </div>
 
                 {/* Right Column - Terms & Fees */}
                 <div className="data-section">
                     <h3 className="data-section-title">Terms & Fees</h3>
-                    {parsed_data.onboarding_fee > 0 && (
-                        <DataRow
+                    {(parsed_data.onboarding_fee > 0 || isFieldEdited('onboarding_fee')) && (
+                        <EditableDataRow
                             label="Onboarding Fee"
-                            value={formatCurrency(parsed_data.onboarding_fee) + ' ' + parsed_data.currency}
+                            value={getValue('onboarding_fee', formatCurrency(parsed_data.onboarding_fee) + ' ' + parsed_data.currency)}
+                            fieldKey="onboarding_fee"
+                            confidence={confidence.onboarding_fee}
+                            isEdited={isFieldEdited('onboarding_fee')}
+                            editingField={editingField}
+                            editValue={editValue}
+                            onStartEdit={handleStartEdit}
+                            onSaveEdit={handleSaveEdit}
+                            onCancelEdit={handleCancelEdit}
+                            onEditChange={handleEditChange}
                         />
                     )}
                     {parsed_data.annual_fees?.length > 0 && parsed_data.annual_fees.map((fee, idx) => (
-                        <DataRow
+                        <EditableDataRow
                             key={idx}
                             label={`Year ${fee.year} Fee`}
-                            value={formatCurrency(fee.amount) + ' ' + parsed_data.currency}
+                            value={getValue(`annual_fee_${fee.year}`, formatCurrency(fee.amount) + ' ' + parsed_data.currency)}
+                            fieldKey={`annual_fee_${fee.year}`}
+                            confidence={confidence.annual_fees}
+                            isEdited={isFieldEdited(`annual_fee_${fee.year}`)}
+                            editingField={editingField}
+                            editValue={editValue}
+                            onStartEdit={handleStartEdit}
+                            onSaveEdit={handleSaveEdit}
+                            onCancelEdit={handleCancelEdit}
+                            onEditChange={handleEditChange}
                         />
                     ))}
-                    {parsed_data.signatures?.customer?.name && (
-                        <DataRow
+                    {(parsed_data.signatures?.customer?.name || isFieldEdited('signature_customer')) && (
+                        <EditableDataRow
                             label="Customer Signature"
-                            value={`${parsed_data.signatures.customer.name}${parsed_data.signatures.customer.date ? ` (${parsed_data.signatures.customer.date})` : ''}`}
+                            value={getValue('signature_customer', `${parsed_data.signatures?.customer?.name || ''}${parsed_data.signatures?.customer?.date ? ` (${parsed_data.signatures.customer.date})` : ''}`)}
+                            fieldKey="signature_customer"
+                            confidence={confidence.signature_customer}
+                            isEdited={isFieldEdited('signature_customer')}
+                            editingField={editingField}
+                            editValue={editValue}
+                            onStartEdit={handleStartEdit}
+                            onSaveEdit={handleSaveEdit}
+                            onCancelEdit={handleCancelEdit}
+                            onEditChange={handleEditChange}
                         />
                     )}
-                    {parsed_data.signatures?.vendor?.name && (
-                        <DataRow
+                    {(parsed_data.signatures?.vendor?.name || isFieldEdited('signature_vendor')) && (
+                        <EditableDataRow
                             label="Vendor Signature"
-                            value={`${parsed_data.signatures.vendor.name}${parsed_data.signatures.vendor.date ? ` (${parsed_data.signatures.vendor.date})` : ''}`}
+                            value={getValue('signature_vendor', `${parsed_data.signatures?.vendor?.name || ''}${parsed_data.signatures?.vendor?.date ? ` (${parsed_data.signatures.vendor.date})` : ''}`)}
+                            fieldKey="signature_vendor"
+                            confidence={confidence.signature_vendor}
+                            isEdited={isFieldEdited('signature_vendor')}
+                            editingField={editingField}
+                            editValue={editValue}
+                            onStartEdit={handleStartEdit}
+                            onSaveEdit={handleSaveEdit}
+                            onCancelEdit={handleCancelEdit}
+                            onEditChange={handleEditChange}
                         />
                     )}
                 </div>
             </div>
+
+            {/* Confidence Help Modal */}
+            <ConfidenceHelpModal isOpen={showConfidenceHelp} onClose={() => setShowConfidenceHelp(false)} />
 
             {/* Revenue Chart */}
             {parsed_data.annual_fees?.length > 0 && (
@@ -882,18 +1465,46 @@ const ContractDetailView = ({ data, onCopy, theme, gmailAuth, onGmailAuthClick, 
             {/* Extracted Text with Copy buttons */}
             <div className="extracted-section">
                 <div className="extracted-header">
-                    <span className="extracted-title">Full Extracted Details</span>
+                    <div className="extracted-title-row">
+                        <span className="extracted-title">Full Extracted Details</span>
+                        <button
+                            className="source-tags-help-trigger"
+                            onClick={() => setShowSourceTagsHelp(true)}
+                            title="What do these tags mean?"
+                        >
+                            <Icons.HelpCircle />
+                        </button>
+                    </div>
                     <div className="extracted-actions">
+                        <button
+                            className={`btn btn-secondary btn-sm source-toggle ${showSourceTags ? '' : 'active'}`}
+                            onClick={() => setShowSourceTags(!showSourceTags)}
+                            title={showSourceTags ? 'Hide source tags' : 'Show source tags'}
+                        >
+                            <Icons.Sparkle />
+                            <span>Clean: {showSourceTags ? 'OFF' : 'ON'}</span>
+                        </button>
+                        <span className="action-separator"></span>
                         <button className="btn btn-secondary btn-sm" onClick={() => onCopy('summary')}>
                             Copy Summary
                         </button>
-                        <button className="btn btn-secondary btn-sm" onClick={() => onCopy('full')}>
+                        <button className="btn btn-secondary btn-sm" onClick={() => onCopy('full', showSourceTags)}>
                             Copy Full
+                        </button>
+                        <span className="action-separator"></span>
+                        <button className="btn btn-secondary btn-sm" onClick={() => exportToCSV(parsed_data, editedFields)}>
+                            CSV
+                        </button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => exportToJSON(parsed_data, editedFields)}>
+                            JSON
                         </button>
                     </div>
                 </div>
-                <pre className="extracted-content">{data.extracted_info}</pre>
+                <ExtractedTextDisplay text={data.extracted_info} showTags={showSourceTags} />
             </div>
+
+            {/* Source Tags Help Modal */}
+            <SourceTagsHelpModal isOpen={showSourceTagsHelp} onClose={() => setShowSourceTagsHelp(false)} />
 
             {/* Email Section */}
             <EmailSection
@@ -1088,9 +1699,18 @@ const App = () => {
         setSteps(steps.map(s => ({ ...s, status: 'pending', message: '' })));
     };
 
-    const handleCopy = async (type) => {
+    const handleCopy = async (type, showTags = true) => {
         const data = currentContract;
-        const text = type === 'summary' ? data.summary : data.extracted_info;
+        let text;
+
+        if (type === 'summary') {
+            text = data.summary;
+        } else {
+            // For full copy, respect the showTags toggle
+            text = showTags
+                ? data.extracted_info
+                : stripSourceTags(data.extracted_info);
+        }
 
         try {
             await navigator.clipboard.writeText(text);
