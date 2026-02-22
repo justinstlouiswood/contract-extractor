@@ -234,7 +234,7 @@ Right panel: PDF viewer in a `rounded-xl border border-border bg-card` container
 | `frontend/src/components/distribution/slack-panel.tsx` | Slack webhook panel |
 | `frontend/src/components/distribution/sheets-panel.tsx` | Google Sheets + export panel |
 | `templates/index.html` | Flask template, loads Vite build output |
-| `static/dist/` | Vite build output (gitignored) |
+| `static/dist/` | Vite build output (committed — must rebuild before committing frontend changes) |
 | `.env` | API keys (never commit) |
 | `nixpacks.toml` | Railway build config (Node.js + Python) |
 | `agent.md` | Extraction agent behavior specification |
@@ -320,7 +320,7 @@ python3 app.py                    # Serves everything at http://localhost:5001
 - **Platform**: Railway (auto-deploys from git push)
 - **Build**: nixpacks runs `cd frontend && npm install && npm run build` then `pip install`
 - **Required Railway variables**: `ANTHROPIC_API_KEY`
-- Push to `origin` (personal) and `work` (company) remotes
+- Push to `origin` remote (only remote currently configured)
 
 ## Environment Variables
 
@@ -350,3 +350,54 @@ FLASK_SECRET_KEY=optional-override
 - Dark-only mode. No theme toggle
 - All styling via Tailwind utility classes
 - `tabular-nums` on all numeric data for alignment
+
+---
+
+## PDF Storage Architecture
+
+- PDFs stored on disk at `uploads/<uuid>.pdf` via the `/upload` endpoint
+- Served to the frontend via `/pdf/<id>` Flask endpoint (`send_file`)
+- `pdfId` (UUID string) passed from `App.tsx` to `PDFViewerPanel` as a prop
+- `PDFViewerPanel` loads via `pdfjsLib.getDocument('/pdf/<id>')`
+- pdfjs-dist Web Worker requires `base: '/static/dist/'` in `vite.config.ts` so the worker URL resolves correctly under Flask's static file serving
+- Frontend bundle in `static/dist/` is committed to git and must be rebuilt (`cd frontend && npm run build`) before committing any frontend source changes
+
+---
+
+## Known Issues / Technical Debt
+
+- `/upload-stream` SSE endpoint does NOT save PDFs to disk and does NOT return `pdf_id` in its response. It is currently unused by the frontend (`App.tsx` uses `/upload` instead), but is a latent bug if reactivated. Either bring it to parity with `/upload` or remove it
+- Railway ephemeral filesystem means `uploads/` PDFs do not persist across deploys. Acceptable for single-session use, but if PDFs need to survive deploys, consider Railway Volumes or external storage
+- `static/dist/` is committed to git. Any frontend source change requires a rebuild before commit, or the bundle will be stale
+
+---
+
+## Session Log
+
+### Feb 22, 2026 — PDF Viewer Fix
+
+**Problem:** PDF viewer showed "PDF unavailable" on every contract, regardless of upload or history.
+
+**Root causes (two compounding issues):**
+1. Frontend source had been reverted from IndexedDB/blob URLs to disk-based `pdfId` storage, but the bundle was never rebuilt — the running JS still tried the old strategy
+2. Vite's default `base: '/'` caused the pdfjs Web Worker URL to resolve to `/assets/pdf.worker.min.mjs` instead of `/static/dist/assets/pdf.worker.min.mjs`, producing a 503 and silent "fake worker" fallback
+
+**Fix (commit `fb4de22`):**
+- Reverted `app.py` to disk storage (`uploads/`), removed volatile in-memory store with 1-hour TTL
+- Reverted `App.tsx` to `pdfId` (UUID string), removed blob URL / IndexedDB logic
+- Reverted `pdf-viewer-panel.tsx` to `pdfId` prop, fetch from `/pdf/<id>` with retry
+- Added `base: '/static/dist/'` to `vite.config.ts`
+- Deleted orphaned `frontend/src/lib/pdf-store.ts`
+- Rebuilt frontend bundle
+
+**Cleanup (commit after `fb4de22`):**
+- Removed unused `import threading` from `app.py`
+- Updated `CLAUDE.md` with architecture docs, known issues, and session log
+
+---
+
+## Next Session Priorities
+
+1. Decide whether `/upload-stream` should be brought to parity with `/upload` (add `pdf_id` + disk storage) or removed entirely
+2. Consider Railway persistent storage if PDF viewing across deploys is needed
+3. Continue building features on a stable, verified base

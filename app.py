@@ -13,7 +13,6 @@ import os
 import re
 import json
 import tempfile
-import threading
 import uuid
 import requests as http_requests
 from pathlib import Path
