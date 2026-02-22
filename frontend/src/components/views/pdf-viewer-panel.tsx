@@ -34,9 +34,17 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage, onPdfUnavailab
     try {
       const checkResp = await fetch(`/pdf/${id}/check`, { signal })
       if (checkResp.status === 404) {
-        setPdfStatus('not_found')
-        onPdfUnavailable?.()
-        return
+        // Verify this is actually our check endpoint responding (not a generic 404)
+        try {
+          const body = await checkResp.json()
+          if (body.exists === false) {
+            setPdfStatus('not_found')
+            onPdfUnavailable?.()
+            return
+          }
+        } catch {
+          // Response wasn't JSON — not our endpoint, proceed optimistically
+        }
       }
       // Non-404 errors (500, network) — proceed optimistically
     } catch (err) {
