@@ -10,6 +10,7 @@ import { PDFViewerPanel } from '@/components/views/pdf-viewer-panel'
 import { DuplicateModal } from '@/components/views/duplicate-modal'
 import { useTheme } from '@/hooks/use-theme'
 import { useRecentContracts } from '@/hooks/use-recent-contracts'
+import { savePdfBlob, getPdfBlob, clearAllPdfBlobs } from '@/lib/pdf-store'
 import type { AppView, ContractResult, ContractRecord, GmailAuth, ProcessingStep } from '@/types/contract'
 
 export default function App() {
@@ -30,7 +31,7 @@ export default function App() {
     { label: 'Generating summary', status: 'pending', message: '' },
   ])
   const [gmailAuth, setGmailAuth] = useState<GmailAuth>({ authenticated: false, email: null })
-  const [pdfId, setPdfId] = useState<string | null>(null)
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [scrollToPage, setScrollToPage] = useState<number | null>(null)
 
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -47,6 +48,15 @@ export default function App() {
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
   }, [])
+
+  // Clean up blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (pdfUrl && pdfUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(pdfUrl)
+      }
+    }
+  }, [pdfUrl])
 
   const checkGmailAuthStatus = async () => {
     try {
@@ -124,8 +134,14 @@ export default function App() {
       updateStep(3, 'complete', 'Summary generated')
       await new Promise(r => setTimeout(r, 500))
 
-      saveContract(result)
-      if (result.pdf_id) setPdfId(result.pdf_id)
+      // Save contract and create blob URL directly from the local file
+      const record = saveContract(result)
+      const blobUrl = URL.createObjectURL(selectedFile)
+      setPdfUrl(blobUrl)
+
+      // Persist PDF in IndexedDB so it's available from history
+      savePdfBlob(record.id, selectedFile)
+
       setCurrentContract(result)
       setView('detail')
     } catch (err) {
@@ -146,21 +162,36 @@ export default function App() {
     setSteps(s => s.map(step => ({ ...step, status: 'pending' as const, message: '' })))
   }
 
-  const handleSelectContract = (contract: ContractRecord) => {
+  const handleSelectContract = async (contract: ContractRecord) => {
     setCurrentContract({
       parsed_data: contract.parsed_data,
       extracted_info: contract.extracted_info,
       summary: contract.summary,
     })
-    setPdfId(contract.pdf_id || null)
+
+    // Load PDF blob from IndexedDB for history entries
+    const blob = await getPdfBlob(contract.id)
+    if (blob) {
+      if (pdfUrl && pdfUrl.startsWith('blob:')) URL.revokeObjectURL(pdfUrl)
+      setPdfUrl(URL.createObjectURL(blob))
+    } else {
+      setPdfUrl(null)
+    }
+
     setView('detail')
   }
 
   const handleBack = () => {
     setCurrentContract(null)
-    setPdfId(null)
+    if (pdfUrl && pdfUrl.startsWith('blob:')) URL.revokeObjectURL(pdfUrl)
+    setPdfUrl(null)
     setScrollToPage(null)
     setView('home')
+  }
+
+  const handleClearRecents = () => {
+    clearContracts()
+    clearAllPdfBlobs()
   }
 
   const handleScrollToPage = (page: number) => {
@@ -175,7 +206,7 @@ export default function App() {
     return null
   }
 
-  const showPdf = view === 'detail' && pdfId
+  const showPdf = view === 'detail' && pdfUrl
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -207,7 +238,7 @@ export default function App() {
                 recentContracts={recentContracts}
                 onFileSelect={handleFileSelect}
                 onSelectContract={handleSelectContract}
-                onClearRecents={clearContracts}
+                onClearRecents={handleClearRecents}
               />
             )}
 
@@ -218,7 +249,7 @@ export default function App() {
             {view === 'detail' && currentContract && (
               <ReviewView
                 data={currentContract}
-                pdfId={pdfId}
+                pdfId={pdfUrl}
                 gmailAuth={gmailAuth}
                 onGmailAuthClick={handleGmailAuthClick}
                 onSendEmail={handleSendEmail}
@@ -230,7 +261,7 @@ export default function App() {
 
           {showPdf && (
             <div className="w-1/2 min-w-0 shrink-0">
-              <PDFViewerPanel pdfId={pdfId} scrollToPage={scrollToPage} />
+              <PDFViewerPanel pdfUrl={pdfUrl} scrollToPage={scrollToPage} />
             </div>
           )}
         </div>
