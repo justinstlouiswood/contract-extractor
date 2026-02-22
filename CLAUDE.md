@@ -44,53 +44,74 @@ Four channels unlock after all categories are verified:
 
 ## Design System
 
-**Dark-mode Novisto-inspired. Georgia serif. 6px rounded rectangles.**
+**Warm off-white light mode. Inter sans-serif. 6px rounded rectangles. Soft shadows.**
+
+Aesthetic target: "Notion meets a white-shoe law firm" — warm whites, soft shadows, quiet depth.
 
 ### Typography
 
-- **Global typeface**: `Georgia, 'Times New Roman', Times, serif` applied to `html, body` via `globals.css`
+- **Global typeface**: `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` applied to `html, body` via `globals.css`
 - **Data values**: Regular weight, no monospace. Use `tabular-nums` for numeric alignment
 - **Monospace exceptions** (keep `font-mono`): extracted text `<pre>` blocks, Spreadsheet ID input, Gmail email display
 - **Sizes**: 28px stat card values, 22px page title, 13px body/labels, 12px/11px captions
 
 ### Color System
 
-Dark-only mode. Background `oklch(0.19 0.003 75)`, card `oklch(0.22 0.003 75)`.
+Single permanent light mode. No dark mode, no theme toggle, no `dark:` classes.
 
-**Semantic status tokens** (5 tiers x 3 roles):
+**Surface depth hierarchy** (lightest to darkest):
 
-| Tier | Background | Ring | Text |
-|------|-----------|------|------|
-| Success | `oklch(0.30 0.04 155)` | `oklch(0.40 0.06 155)` | `oklch(0.72 0.10 155)` |
-| Warning | `oklch(0.30 0.04 85)` | `oklch(0.40 0.06 85)` | `oklch(0.78 0.10 85)` |
-| Danger | `oklch(0.28 0.04 25)` | `oklch(0.38 0.06 25)` | `oklch(0.72 0.12 25)` |
-| Info | `oklch(0.28 0.04 250)` | `oklch(0.38 0.06 250)` | `oklch(0.72 0.10 250)` |
-| Neutral | `oklch(0.25 0.003 75)` | `oklch(0.35 0.003 75)` | `oklch(0.60 0.003 75)` |
+| Layer | Color | Token | Usage |
+|-------|-------|-------|-------|
+| Cards | `#FFFFFF` | `--card` | Highest layer, pure white with `shadow-card` |
+| Canvas | `#F5F4F1` | `--background` | Main app background, warm off-white |
+| Secondary | `#EFEDE9` | `--surface-secondary` | Sidebar, PDF panel background |
+| Inner tint | `#FAFAF8` | `--surface-tint` | Barely-there tint within expanded card sections |
 
-**Chart accent colors**: Moss `oklch(0.50 0.08 155)`, Sage `oklch(0.65 0.06 155)`
+**Key neutral tokens**:
+- `--foreground: #1A1A1A` (near-black text)
+- `--muted-foreground: #6B6B6B` (secondary text)
+- `--border: #E0DDD7` (warm gray borders)
+- `--secondary: #F0EEE9`, `--accent: #ECEAE5`
 
-**Hardcoded badge colors**:
+**Chart accent colors**: Moss `#2D6A4F`, Sage `#52B788`
 
-| Badge | Text | Background | Border |
-|-------|------|------------|--------|
-| Extracted | `#4ADE80` | `#0D1F14` | `#1F5C32` |
-| Review | `#F87171` | `#1F0D0D` | `#7F1D1D` |
+**Semantic status tokens**:
+
+| Tier | Background | Ring/Border | Text |
+|------|-----------|-------------|------|
+| Success | `#F0FDF4` | `#BBF7D0` | `#15803D` |
+| Danger | `#FEF2F2` | `#FECACA` | `#DC2626` |
+
+**Badge variants** (defined in `badge.tsx` cva):
+- `extracted`: green bg/text/border (`--extracted-*` tokens)
+- `warning` / `danger`: red bg/text/border (`--danger-*` tokens)
+- `success`: green bg/text/border (`--success-*` tokens)
 
 **Source tag colors** (in `getTagColor()`):
 
 | Tag | Background | Text |
 |-----|-----------|------|
-| EXPLICIT | `#0D1F14` | `#4ADE80` |
-| INFERRED | `#1A1708` | `#FACC15` |
-| NOT_FOUND | `#1C1C22` | `#9494A8` |
+| EXPLICIT | `#F0FDF4` | `#15803D` |
+| INFERRED | `#F0EEE9` | `#6B6B6B` |
+| NOT_FOUND | `#F0EEE9` | `#A0A0A0` |
 | PARTIAL | semantic `warning-bg` | semantic `warning-text` |
 | MULTIPLE | semantic `neutral-bg` | semantic `neutral-text` |
 
+### Shadows
+
+Two tiers defined as `@utility` in `globals.css`:
+
+| Utility | Shadow | Usage |
+|---------|--------|-------|
+| `shadow-card` | `0 1px 4px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.05)` | Cards, stat tiles, tables, expandable sections |
+| `shadow-float` | `0 2px 8px rgba(0,0,0,0.10), 0 6px 20px rgba(0,0,0,0.08)` | Floating dock, dialogs, tooltips, copy feedback toast |
+
 ### Shape
 
-- **Border radius**: `--radius: 0.4375rem` (7px base). Most elements use `rounded-sm` (6px) or `rounded-md`
-- **No pills**: All badges, tags, and chips use `rounded-md` (6px). Never `rounded-full` except for timeline dots and the toggle switch knob
-- **Cards**: `rounded-xl` on the PDF viewer panel card, standard on others
+- **Border radius**: `--radius: 0.375rem` (6px). All radius tokens (`--radius-sm` through `--radius-4xl`) set to `0.375rem`
+- **No pills**: All badges, tags, and chips use `rounded-md` (6px). Never `rounded-full` except for timeline dots
+- **Cards**: `rounded-sm` (6px) on all card-like containers
 
 ### Spacing
 
@@ -207,7 +228,7 @@ Right panel: PDF viewer in a `rounded-xl border border-border bg-card` container
 | `frontend/src/types/contract.ts` | TypeScript interfaces for all data structures |
 | `frontend/src/lib/contract-utils.ts` | Utility functions (format, export, parse, tag colors) |
 | `frontend/src/globals.css` | Tailwind v4 theme tokens, oklch color system, Georgia font |
-| `frontend/src/hooks/use-theme.ts` | Dark mode (adds `.dark` class to `<html>`) |
+| `frontend/src/hooks/use-theme.ts` | Cleanup-only hook (removes stale `.dark` class + localStorage from prior sessions) |
 | `frontend/src/hooks/use-recent-contracts.ts` | localStorage-based contract history (max 20) |
 | `frontend/src/components/ui/` | shadcn/ui primitives (Table, Badge, Button, Card, Input, Progress, Dialog, etc.) |
 | `frontend/src/components/views/home-view.tsx` | Homepage command center |
@@ -292,10 +313,12 @@ Checks agreement between related fields:
 
 ### Confidence Tiers (UI Display)
 
-| Tier | Score | Color | Label |
-|------|-------|-------|-------|
-| High Confidence | >= 85 | Green (`#4ADE80`) | High |
-| Needs Review | < 85 | Red (`#F87171`) | Review |
+| Tier | Score | Label |
+|------|-------|-------|
+| High Confidence | >= 85 | Black text subheading, green-tinted heatmap chips |
+| Needs Review | < 85 | Black text subheading, red-tinted heatmap chips |
+
+Card title ("Extraction Confidence") and tier subheadings ("High Confidence", "Needs Review") both use `text-foreground` (black).
 
 ---
 
@@ -341,13 +364,14 @@ FLASK_SECRET_KEY=optional-override
 ## Style Preferences
 
 - No emojis in code or UI
-- Georgia serif for all text; `font-mono` only for raw extracted text, sheet IDs, email addresses
-- Bar chart corners: rounded on top only (3px), square on bottom
+- Inter sans-serif for all text; `font-mono` only for raw extracted text, sheet IDs, email addresses
+- Bar chart corners: rounded on top only (2px), square on bottom
 - All buttons use shadcn Button (outline or ghost variants for secondary actions)
-- 6px rounded rectangles on all badges, tags, chips. No pills
-- Dark-only mode. No theme toggle
+- 6px rounded rectangles on all badges, tags, chips, cards. No pills
+- Single permanent light mode. No dark mode, no theme toggle, no `dark:` Tailwind classes
 - All styling via Tailwind utility classes
 - `tabular-nums` on all numeric data for alignment
+- Cards lift off the warm off-white canvas via `shadow-card`; floating elements use `shadow-float`
 
 ---
 
@@ -403,9 +427,47 @@ FLASK_SECRET_KEY=optional-override
 - Removed `/upload-stream` proxy from `frontend/vite.config.ts`
 - Updated module docstring, API routes table, known issues, and session log in `CLAUDE.md`
 
+### Feb 22, 2026 — Off-White Depth Redesign
+
+**Goal:** Convert from dual light/dark mode to a single permanent light mode with warm off-white depth and dimensionality. "Notion meets a white-shoe law firm."
+
+**Changes (commit `a28682f`, 26 files, 122 insertions, 251 deletions):**
+
+Phase 1 — Strip dark mode infrastructure:
+- Deleted `frontend/src/components/theme-toggle.tsx`
+- Gutted `frontend/src/hooks/use-theme.ts` to cleanup-only stub (removes stale `.dark` class + localStorage)
+- Removed ThemeToggle import/mount from `App.tsx`
+- Removed all `dark:` classes from 7 UI component files (button, input, textarea, checkbox, badge, tabs, dropdown-menu)
+
+Phase 2 — Rewrite `globals.css`:
+- Removed `@custom-variant dark`, entire `.dark {}` block, toggle vars, 150ms transition rule
+- Updated `:root` to warm off-white palette: canvas `#F5F4F1`, secondary `#F0EEE9`, accent `#ECEAE5`, borders `#E0DDD7`, sidebar `#EFEDE9`
+- Added surface tokens: `--surface-secondary: #EFEDE9`, `--surface-tint: #FAFAF8`
+- Added `@utility shadow-card` and `@utility shadow-float`
+- Set all radius tokens to `0.375rem` (6px)
+
+Phase 3 — Apply shadows and surface tokens:
+- `shadow-card` on: card.tsx base, stat cards (home-view), table wrapper (home-contract-table), confidence heatmap, verification progress, contract timeline, expandable section headers, PDF inner card, dropzone resting state, empty state
+- `shadow-float` on: floating dock, copy feedback toast, revenue chart tooltip, dialog content
+- `bg-surface-secondary` on PDF viewer panel outer container
+- `bg-surface-tint` on expandable section content body
+- Confidence heatmap: title and tier subheadings changed to `text-foreground` (black) instead of muted/colored
+
+**Verification:**
+- `grep -r "dark:" frontend/src/` returns 0 results
+- No `.dark` class on `<html>`, no `theme` key in localStorage
+- Build succeeds cleanly (`tsc -b && vite build`)
+- Visually verified in Chrome: warm off-white canvas, white cards with soft shadows, PDF panel with secondary surface background
+
+**Decisions made:**
+- Kept `useTheme()` hook as a cleanup stub rather than deleting entirely, to gracefully handle users with stale `.dark` class/localStorage from prior sessions
+- All radius tokens set to the same value (0.375rem) for uniform 6px corners everywhere
+- Two shadow tiers only: `shadow-card` (subtle) for cards, `shadow-float` (stronger) for overlays
+
 ---
 
 ## Next Session Priorities
 
 1. Consider Railway persistent storage if PDF viewing across deploys is needed
-2. Continue building features on a stable, verified base
+2. CLAUDE.md Design System section still references some stale values from prior dark-mode era in the UX Flow section (badge colors like `#4ADE80` etc.) — these describe dark-mode colors that no longer apply but are in prose descriptions, not `:root` vars. Low priority cosmetic cleanup
+3. Continue building features on a stable, verified base
