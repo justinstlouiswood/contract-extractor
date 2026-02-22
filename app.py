@@ -4,19 +4,17 @@ Contract Extractor - Main Application (V3)
 Features:
 - PDF upload and text extraction
 - AI-powered contract analysis via Claude
-- Real-time progress streaming (SSE)
-- Structured JSON output for charting
-- Cancel/abort functionality
+- Structured JSON output with confidence scoring
+- Gmail OAuth2 email + Google Sheets integration
+- Slack incoming webhook integration
 """
 
 import os
 import re
-import json
-import tempfile
 import uuid
 import requests as http_requests
 from pathlib import Path
-from flask import Flask, request, jsonify, render_template, Response, stream_with_context, session, redirect, url_for, send_file
+from flask import Flask, request, jsonify, render_template, session, url_for, send_file
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import anthropic
@@ -38,9 +36,6 @@ ALLOWED_EXTENSIONS = {'pdf'}
 
 # Initialize the Anthropic client
 client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
-
-# Track active processing jobs (for cancellation)
-active_jobs = {}
 
 
 def allowed_file(filename):
@@ -696,121 +691,6 @@ def upload_file():
     except Exception as e:
         return jsonify({'error': f'Processing error: {str(e)}'}), 500
 
-
-@app.route('/upload-stream', methods=['POST'])
-def upload_file_stream():
-    """
-    Handle PDF file uploads with Server-Sent Events (SSE) for progress updates.
-    This endpoint streams progress back to the client in real-time.
-    """
-
-    def generate():
-        job_id = str(uuid.uuid4())
-        active_jobs[job_id] = {'cancelled': False}
-
-        try:
-            # Step 1: Validate file
-            yield f"data: {json.dumps({'step': 1, 'status': 'in_progress', 'message': 'Validating file...', 'job_id': job_id})}\n\n"
-
-            if 'file' not in request.files:
-                yield f"data: {json.dumps({'error': 'No file uploaded'})}\n\n"
-                return
-
-            file = request.files['file']
-
-            if file.filename == '':
-                yield f"data: {json.dumps({'error': 'No file selected'})}\n\n"
-                return
-
-            if not allowed_file(file.filename):
-                yield f"data: {json.dumps({'error': 'Only PDF files are allowed'})}\n\n"
-                return
-
-            filename = secure_filename(file.filename)
-            yield f"data: {json.dumps({'step': 1, 'status': 'complete', 'message': 'File validated'})}\n\n"
-
-            # Check for cancellation
-            if active_jobs.get(job_id, {}).get('cancelled'):
-                yield f"data: {json.dumps({'cancelled': True})}\n\n"
-                return
-
-            # Step 2: Extract text from PDF
-            yield f"data: {json.dumps({'step': 2, 'status': 'in_progress', 'message': 'Extracting text from PDF...'})}\n\n"
-
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-                file.save(tmp_file.name)
-                temp_path = tmp_file.name
-
-            pdf_text = extract_text_from_pdf(temp_path)
-            os.unlink(temp_path)
-
-            if not pdf_text or len(pdf_text.strip()) < 100:
-                yield f"data: {json.dumps({'error': 'Could not extract text from PDF'})}\n\n"
-                return
-
-            yield f"data: {json.dumps({'step': 2, 'status': 'complete', 'message': f'Extracted {len(pdf_text)} characters'})}\n\n"
-
-            # Check for cancellation
-            if active_jobs.get(job_id, {}).get('cancelled'):
-                yield f"data: {json.dumps({'cancelled': True})}\n\n"
-                return
-
-            # Step 3: Analyze with Claude
-            yield f"data: {json.dumps({'step': 3, 'status': 'in_progress', 'message': 'Analyzing contract with AI...'})}\n\n"
-
-            extracted_info = extract_contract_info(pdf_text)
-
-            yield f"data: {json.dumps({'step': 3, 'status': 'complete', 'message': 'Analysis complete'})}\n\n"
-
-            # Check for cancellation
-            if active_jobs.get(job_id, {}).get('cancelled'):
-                yield f"data: {json.dumps({'cancelled': True})}\n\n"
-                return
-
-            # Step 4: Generate structured output
-            yield f"data: {json.dumps({'step': 4, 'status': 'in_progress', 'message': 'Generating summary...'})}\n\n"
-
-            parsed_data = parse_extracted_data(extracted_info)
-            summary = generate_summary(parsed_data)
-
-            yield f"data: {json.dumps({'step': 4, 'status': 'complete', 'message': 'Summary generated'})}\n\n"
-
-            # Final result
-            result = {
-                'success': True,
-                'filename': filename,
-                'extracted_info': extracted_info,
-                'parsed_data': parsed_data,
-                'summary': summary,
-                'complete': True
-            }
-            yield f"data: {json.dumps(result)}\n\n"
-
-        except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
-        finally:
-            # Clean up job tracking
-            if job_id in active_jobs:
-                del active_jobs[job_id]
-
-    return Response(
-        stream_with_context(generate()),
-        mimetype='text/event-stream',
-        headers={
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'X-Accel-Buffering': 'no'
-        }
-    )
-
-
-@app.route('/cancel/<job_id>', methods=['POST'])
-def cancel_job(job_id):
-    """Cancel an active extraction job."""
-    if job_id in active_jobs:
-        active_jobs[job_id]['cancelled'] = True
-        return jsonify({'success': True, 'message': 'Job cancellation requested'})
-    return jsonify({'error': 'Job not found'}), 404
 
 
 # ============================================

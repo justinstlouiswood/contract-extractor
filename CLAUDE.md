@@ -247,8 +247,6 @@ Right panel: PDF viewer in a `rounded-xl border border-border bg-card` container
 |-------|--------|---------|
 | `/` | GET | Serve main page |
 | `/upload` | POST | Upload PDF, extract text, analyze with Claude, return structured JSON |
-| `/upload-stream` | POST | SSE streaming version of upload with step-by-step progress |
-| `/cancel/<job_id>` | POST | Cancel an active extraction job |
 | `/send-email` | POST | Send email via Gmail OAuth |
 | `/send-slack` | POST | Post Block Kit message to Slack via incoming webhook |
 | `/push-to-sheets` | POST | Append row to Google Sheet |
@@ -366,8 +364,7 @@ FLASK_SECRET_KEY=optional-override
 
 ## Known Issues / Technical Debt
 
-- `/upload-stream` SSE endpoint does NOT save PDFs to disk and does NOT return `pdf_id` in its response. It is currently unused by the frontend (`App.tsx` uses `/upload` instead), but is a latent bug if reactivated. Either bring it to parity with `/upload` or remove it
-- Railway ephemeral filesystem means `uploads/` PDFs do not persist across deploys. Acceptable for single-session use, but if PDFs need to survive deploys, consider Railway Volumes or external storage
+- Railway ephemeral filesystem means `uploads/` PDFs do not persist across deploys. Acceptable for single-session use (upload, review, distribute, done), but if PDFs need to survive deploys, consider Railway Volumes or external storage
 - `static/dist/` is committed to git. Any frontend source change requires a rebuild before commit, or the bundle will be stale
 
 ---
@@ -390,14 +387,25 @@ FLASK_SECRET_KEY=optional-override
 - Deleted orphaned `frontend/src/lib/pdf-store.ts`
 - Rebuilt frontend bundle
 
-**Cleanup (commit after `fb4de22`):**
+**Cleanup (commit `4f43d03`):**
 - Removed unused `import threading` from `app.py`
 - Updated `CLAUDE.md` with architecture docs, known issues, and session log
+
+### Feb 22, 2026 — Dead Code Removal
+
+**Problem:** `/upload-stream` SSE endpoint, `/cancel/<job_id>` endpoint, and `active_jobs` dict were all dead code — never called by the frontend, incompatible with the disk-based PDF storage model.
+
+**Fix:**
+- Removed `/upload-stream` route and `upload_file_stream()` function (~105 lines)
+- Removed `/cancel/<job_id>` route and `cancel_job()` function
+- Removed `active_jobs = {}` dict
+- Removed unused imports: `tempfile`, `json`, `Response`, `stream_with_context`, `redirect`
+- Removed `/upload-stream` proxy from `frontend/vite.config.ts`
+- Updated module docstring, API routes table, known issues, and session log in `CLAUDE.md`
 
 ---
 
 ## Next Session Priorities
 
-1. Decide whether `/upload-stream` should be brought to parity with `/upload` (add `pdf_id` + disk storage) or removed entirely
-2. Consider Railway persistent storage if PDF viewing across deploys is needed
-3. Continue building features on a stable, verified base
+1. Consider Railway persistent storage if PDF viewing across deploys is needed
+2. Continue building features on a stable, verified base
