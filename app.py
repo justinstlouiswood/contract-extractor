@@ -11,9 +11,7 @@ Features:
 
 import os
 import re
-import io
 import json
-import time
 import tempfile
 import threading
 import uuid
@@ -35,6 +33,7 @@ app = Flask(__name__)
 
 # Configuration
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
+app.config['UPLOAD_FOLDER'] = 'uploads'
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
 ALLOWED_EXTENSIONS = {'pdf'}
 
@@ -44,23 +43,10 @@ client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 # Track active processing jobs (for cancellation)
 active_jobs = {}
 
-# In-memory PDF storage (keyed by pdf_id)
-# Each entry: {'data': bytes, 'created': timestamp}
-pdf_store = {}
-PDF_TTL_SECONDS = 3600  # 1 hour
-
 
 def allowed_file(filename):
     """Check if the uploaded file has a .pdf extension"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
-def cleanup_expired_pdfs():
-    """Remove PDFs older than TTL from memory."""
-    now = time.time()
-    expired = [k for k, v in pdf_store.items() if now - v['created'] > PDF_TTL_SECONDS]
-    for k in expired:
-        del pdf_store[k]
 
 
 def extract_signal(text):
@@ -671,24 +657,18 @@ def upload_file():
         # Generate unique ID for this PDF
         pdf_id = str(uuid.uuid4())
 
-        # Read PDF bytes and store in memory for viewer
-        pdf_bytes = file.read()
-        pdf_store[pdf_id] = {'data': pdf_bytes, 'created': time.time()}
-        cleanup_expired_pdfs()
-
-        # Write to temp file for text extraction
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
-            tmp.write(pdf_bytes)
-            temp_path = tmp.name
+        # Save PDF to disk for viewer
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], f'{pdf_id}.pdf')
+        file.save(pdf_path)
 
         # Extract text from PDF
-        pdf_text = extract_text_from_pdf(temp_path)
-        os.unlink(temp_path)  # Clean up temp file
+        pdf_text = extract_text_from_pdf(pdf_path)
 
         if not pdf_text or len(pdf_text.strip()) < 100:
             # Clean up if extraction fails
-            if pdf_id in pdf_store:
-                del pdf_store[pdf_id]
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
             return jsonify({
                 'error': 'Could not extract sufficient text from the PDF.'
             }), 400
@@ -1160,22 +1140,18 @@ def push_to_sheets():
 
 @app.route('/pdf/<pdf_id>')
 def serve_pdf(pdf_id):
-    """Serve uploaded PDF from memory"""
+    """Serve uploaded PDF from disk"""
     # Validate UUID format to prevent path traversal
     try:
         uuid.UUID(pdf_id)
     except ValueError:
         return jsonify({'error': 'Invalid PDF ID'}), 400
 
-    entry = pdf_store.get(pdf_id)
-    if not entry:
+    pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], f'{pdf_id}.pdf')
+    if not os.path.exists(pdf_path):
         return jsonify({'error': 'PDF not found'}), 404
 
-    return send_file(
-        io.BytesIO(entry['data']),
-        mimetype='application/pdf',
-        download_name=f'{pdf_id}.pdf'
-    )
+    return send_file(pdf_path, mimetype='application/pdf')
 
 
 @app.route('/health')

@@ -9,11 +9,11 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 ).toString()
 
 interface PDFViewerPanelProps {
-  pdfUrl: string | null
+  pdfId: string | null
   scrollToPage: number | null
 }
 
-export function PDFViewerPanel({ pdfUrl, scrollToPage: targetPage }: PDFViewerPanelProps) {
+export function PDFViewerPanel({ pdfId, scrollToPage: targetPage }: PDFViewerPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRefs = useRef<Record<number, HTMLCanvasElement | null>>({})
   const textLayerRefs = useRef<Record<number, HTMLDivElement | null>>({})
@@ -25,38 +25,43 @@ export function PDFViewerPanel({ pdfUrl, scrollToPage: targetPage }: PDFViewerPa
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadPdf = useCallback(async (url: string) => {
+  const loadPdf = useCallback(async (id: string, attempt = 1) => {
     try {
-      const pdf = await pdfjsLib.getDocument(url).promise
+      const pdf = await pdfjsLib.getDocument(`/pdf/${id}`).promise
       setPdfDoc(pdf)
       setTotalPages(pdf.numPages)
       setLoading(false)
     } catch {
-      setError('PDF unavailable')
-      setLoading(false)
+      if (attempt === 1) {
+        // Retry once after brief delay
+        setTimeout(() => loadPdf(id, 2), 500)
+      } else {
+        setError('PDF unavailable')
+        setLoading(false)
+      }
     }
   }, [])
 
   useEffect(() => {
-    if (!pdfUrl) return
+    if (!pdfId) return
     setLoading(true)
     setError(null)
     setPdfDoc(null)
     setTotalPages(0)
     renderGenRef.current += 1
 
-    loadPdf(pdfUrl)
-  }, [pdfUrl, loadPdf])
+    loadPdf(pdfId)
+  }, [pdfId, loadPdf])
 
   const handleRetry = useCallback(() => {
-    if (!pdfUrl) return
+    if (!pdfId) return
     setLoading(true)
     setError(null)
     setPdfDoc(null)
     setTotalPages(0)
     renderGenRef.current += 1
-    loadPdf(pdfUrl)
-  }, [pdfUrl, loadPdf])
+    loadPdf(pdfId)
+  }, [pdfId, loadPdf])
 
   const renderPage = useCallback(async (pageNum: number, gen: number) => {
     if (!pdfDoc || !canvasRefs.current[pageNum]) return
@@ -138,7 +143,7 @@ export function PDFViewerPanel({ pdfUrl, scrollToPage: targetPage }: PDFViewerPa
     }
   }, [targetPage])
 
-  if (!pdfUrl) return null
+  if (!pdfId) return null
 
   return (
     <div className="flex h-full flex-col p-3 pl-1.5">
