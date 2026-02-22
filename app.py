@@ -15,6 +15,7 @@ import json
 import tempfile
 import threading
 import uuid
+import requests as http_requests
 from pathlib import Path
 from flask import Flask, request, jsonify, render_template, Response, stream_with_context, session, redirect, url_for, send_file
 from werkzeug.utils import secure_filename
@@ -55,13 +56,18 @@ def get_pdf_path(pdf_id):
 
 def extract_signal(text):
     """
-    Extract the signal tag from a value string.
-    Returns (signal, clean_value) tuple.
+    Extract the signal tag and page references from a value string.
+    Returns (signal, pages, clean_value) tuple.
+    Format: [SIGNAL:page1,page2] value  OR  [SIGNAL] value (legacy)
     """
-    signal_match = re.match(r'\[(\w+)\]\s*(.*)$', text.strip())
+    # New format: [SIGNAL:page_nums]
+    signal_match = re.match(r'\[(\w+):?([\d,]*)\]\s*(.*)$', text.strip())
     if signal_match:
-        return signal_match.group(1).upper(), signal_match.group(2).strip()
-    return 'EXPLICIT', text.strip()  # Default to EXPLICIT if no signal found
+        signal = signal_match.group(1).upper()
+        page_str = signal_match.group(2)
+        pages = [int(p) for p in page_str.split(',') if p] if page_str else []
+        return signal, pages, signal_match.group(3).strip()
+    return 'EXPLICIT', [], text.strip()  # Default to EXPLICIT if no signal found
 
 
 def parse_extracted_data(extracted_text):
@@ -79,7 +85,7 @@ def parse_extracted_data(extracted_text):
         'duration': None,
         'annual_fees': [],
         'onboarding_fee': None,
-        'onboarding_terms': None,
+        'payment_terms': None,
         'currency': 'CAD',
         'total_contract_value': 0,
         'notes': None,
@@ -88,7 +94,9 @@ def parse_extracted_data(extracted_text):
             'customer': {'name': None, 'title': None, 'date': None},
             'vendor': {'name': None, 'title': None, 'date': None}
         },
-        'raw_text': extracted_text
+        'clauses': {},
+        'raw_text': extracted_text,
+        'page_refs': {}
     }
 
     # Track extraction signals for confidence calculation
@@ -98,15 +106,17 @@ def parse_extracted_data(extracted_text):
         # Extract customer name (with signal)
         customer_match = re.search(r'1\.1 Customer Legal Name:\s*(.+?)(?:\n|$)', extracted_text)
         if customer_match:
-            signal, value = extract_signal(customer_match.group(1))
+            signal, pages, value = extract_signal(customer_match.group(1))
             signals['customer_name'] = signal
+            data['page_refs']['customer_name'] = pages
             data['customer_name'] = value
 
         # Extract point of contact (with signal)
         poc_match = re.search(r'1\.2 Point of Contact:\s*(.+?)(?:\n|$)', extracted_text)
         if poc_match:
-            signal, poc_text = extract_signal(poc_match.group(1))
+            signal, pages, poc_text = extract_signal(poc_match.group(1))
             signals['point_of_contact'] = signal
+            data['page_refs']['point_of_contact'] = pages
             email_match = re.search(r'<([^>]+)>', poc_text)
             if email_match:
                 data['point_of_contact']['email'] = email_match.group(1)
@@ -117,8 +127,9 @@ def parse_extracted_data(extracted_text):
         # Extract billing contact (with signal)
         billing_match = re.search(r'1\.3 Billing Contact:\s*(.+?)(?:\n|$)', extracted_text)
         if billing_match:
-            signal, billing_text = extract_signal(billing_match.group(1))
+            signal, pages, billing_text = extract_signal(billing_match.group(1))
             signals['billing_contact'] = signal
+            data['page_refs']['billing_contact'] = pages
             email_match = re.search(r'<([^>]+)>', billing_text)
             if email_match:
                 data['billing_contact']['email'] = email_match.group(1)
@@ -129,60 +140,77 @@ def parse_extracted_data(extracted_text):
         # Extract subscription dates (with signals)
         start_match = re.search(r'Start Date:\s*(.+?)(?:\n|$)', extracted_text)
         if start_match:
-            signal, value = extract_signal(start_match.group(1))
+            signal, pages, value = extract_signal(start_match.group(1))
             signals['subscription_start'] = signal
+            data['page_refs']['subscription_start'] = pages
             data['subscription_start'] = value
 
         end_match = re.search(r'End Date:\s*(.+?)(?:\n|$)', extracted_text)
         if end_match:
-            signal, value = extract_signal(end_match.group(1))
+            signal, pages, value = extract_signal(end_match.group(1))
             signals['subscription_end'] = signal
+            data['page_refs']['subscription_end'] = pages
             data['subscription_end'] = value
 
         duration_match = re.search(r'Duration:\s*(.+?)(?:\n|$)', extracted_text)
         if duration_match:
-            signal, value = extract_signal(duration_match.group(1))
+            signal, pages, value = extract_signal(duration_match.group(1))
             signals['duration'] = signal
+            data['page_refs']['duration'] = pages
             data['duration'] = value
 
         # Extract annual fees (Year 1, Year 2, etc.) - with signal detection
-        # Pattern: Year 1: [SIGNAL] $amount CURRENCY
-        year_pattern = re.compile(r'Year\s*(\d+):\s*(?:\[(\w+)\])?\s*\$?([\d,]+(?:\.\d{2})?)\s*(\w+)?', re.IGNORECASE)
+        # Pattern: Year 1: [SIGNAL:pages] $amount CURRENCY
+        year_pattern = re.compile(r'Year\s*(\d+):\s*(?:\[(\w+):?([\d,]*)\])?\s*\$?([\d,]+(?:\.\d{2})?)\s*(\w+)?', re.IGNORECASE)
         annual_fee_signals = []
+        annual_fee_pages = []
         for match in year_pattern.finditer(extracted_text):
             year_num = int(match.group(1))
             signal = match.group(2).upper() if match.group(2) else 'EXPLICIT'
+            page_str = match.group(3) or ''
+            pages = [int(p) for p in page_str.split(',') if p] if page_str else []
             annual_fee_signals.append(signal)
-            amount_str = match.group(3).replace(',', '')
+            annual_fee_pages.extend(pages)
+            amount_str = match.group(4).replace(',', '')
             amount = float(amount_str)
-            currency = match.group(4) if match.group(4) else 'CAD'
+            currency = match.group(5) if match.group(5) else 'CAD'
             data['annual_fees'].append({
                 'year': year_num,
                 'amount': amount,
                 'currency': currency
             })
             data['currency'] = currency
+            data['page_refs'][f'annual_fee_year_{year_num}'] = pages
 
         # Use most common signal for annual fees
         if annual_fee_signals:
             signals['annual_fees'] = max(set(annual_fee_signals), key=annual_fee_signals.count)
+        if annual_fee_pages:
+            data['page_refs']['annual_fees'] = list(set(annual_fee_pages))
 
         # Sort annual fees by year
         data['annual_fees'].sort(key=lambda x: x['year'])
 
         # Extract onboarding fee (with signal)
-        onboarding_match = re.search(r'One-Time Fee:\s*(?:\[(\w+)\])?\s*\$?([\d,]+(?:\.\d{2})?)\s*(\w+)?', extracted_text)
+        onboarding_match = re.search(r'One-Time Fee:\s*(?:\[(\w+):?([\d,]*)\])?\s*\$?([\d,]+(?:\.\d{2})?)\s*(\w+)?', extracted_text)
         if onboarding_match:
             signals['onboarding_fee'] = onboarding_match.group(1).upper() if onboarding_match.group(1) else 'EXPLICIT'
-            amount_str = onboarding_match.group(2).replace(',', '')
+            page_str = onboarding_match.group(2) or ''
+            data['page_refs']['onboarding_fee'] = [int(p) for p in page_str.split(',') if p] if page_str else []
+            amount_str = onboarding_match.group(3).replace(',', '')
             data['onboarding_fee'] = float(amount_str)
 
-        # Extract onboarding terms (with signal)
+        # Extract payment terms — only the net payment window (e.g., "Net 30")
         terms_match = re.search(r'Payment Terms:\s*(.+?)(?:\n|$)', extracted_text)
         if terms_match:
-            signal, value = extract_signal(terms_match.group(1))
-            signals['onboarding_terms'] = signal
-            data['onboarding_terms'] = value
+            signal, pages, value = extract_signal(terms_match.group(1))
+            # Validate: only keep if it matches "Net [number]" pattern
+            net_match = re.search(r'[Nn]et\s+(\d+)', value)
+            if net_match and value.lower() not in ['not specified', '']:
+                normalized = f"Net {net_match.group(1)}"
+                signals['payment_terms'] = signal
+                data['page_refs']['payment_terms'] = pages
+                data['payment_terms'] = normalized
 
         # Calculate total contract value
         total = sum(fee['amount'] for fee in data['annual_fees'])
@@ -201,23 +229,54 @@ def parse_extracted_data(extracted_text):
             data['additional_terms'] = terms_section.group(1).strip()
 
         # Extract signatures (with signals)
-        customer_sig = re.search(r'5\.1 Customer:\s*(?:\[(\w+)\])?\s*([^,]+),\s*([^—]+)—\s*Signed:\s*(.+?)(?:\n|$)', extracted_text)
+        customer_sig = re.search(r'5\.1 Customer:\s*(?:\[(\w+):?([\d,]*)\])?\s*([^,]+),\s*([^—]+)—\s*Signed:\s*(.+?)(?:\n|$)', extracted_text)
         if customer_sig:
             signals['signature_customer'] = customer_sig.group(1).upper() if customer_sig.group(1) else 'EXPLICIT'
+            page_str = customer_sig.group(2) or ''
+            data['page_refs']['signature_customer'] = [int(p) for p in page_str.split(',') if p] if page_str else []
             data['signatures']['customer'] = {
-                'name': customer_sig.group(2).strip(),
-                'title': customer_sig.group(3).strip(),
-                'date': customer_sig.group(4).strip()
+                'name': customer_sig.group(3).strip(),
+                'title': customer_sig.group(4).strip(),
+                'date': customer_sig.group(5).strip()
             }
 
-        vendor_sig = re.search(r'5\.2 Vendor:\s*(?:\[(\w+)\])?\s*([^,]+),\s*([^—]+)—\s*Signed:\s*(.+?)(?:\n|$)', extracted_text)
+        vendor_sig = re.search(r'5\.2 Vendor:\s*(?:\[(\w+):?([\d,]*)\])?\s*([^,]+),\s*([^—]+)—\s*Signed:\s*(.+?)(?:\n|$)', extracted_text)
         if vendor_sig:
             signals['signature_vendor'] = vendor_sig.group(1).upper() if vendor_sig.group(1) else 'EXPLICIT'
+            page_str = vendor_sig.group(2) or ''
+            data['page_refs']['signature_vendor'] = [int(p) for p in page_str.split(',') if p] if page_str else []
             data['signatures']['vendor'] = {
-                'name': vendor_sig.group(2).strip(),
-                'title': vendor_sig.group(3).strip(),
-                'date': vendor_sig.group(4).strip()
+                'name': vendor_sig.group(3).strip(),
+                'title': vendor_sig.group(4).strip(),
+                'date': vendor_sig.group(5).strip()
             }
+
+        # Extract clauses (Section 6)
+        clause_types = [
+            ('auto_renewal', r'6\.1 Auto-Renewal:\s*(?:\[(\w+):?([\d,]*)\])?\s*(YES|NO)\s*(?:—\s*(.+?))?(?:\n|$)'),
+            ('termination_convenience', r'6\.2 Termination for Convenience:\s*(?:\[(\w+):?([\d,]*)\])?\s*(YES|NO)\s*(?:—\s*(.+?))?(?:\n|$)'),
+            ('sla_guarantee', r'6\.3 SLA Guarantee:\s*(?:\[(\w+):?([\d,]*)\])?\s*(YES|NO)\s*(?:—\s*(.+?))?(?:\n|$)'),
+            ('liability_cap', r'6\.4 Liability Cap:\s*(?:\[(\w+):?([\d,]*)\])?\s*(YES|NO)\s*(?:—\s*(.+?))?(?:\n|$)'),
+            ('data_processing', r'6\.5 Data Processing / DPA:\s*(?:\[(\w+):?([\d,]*)\])?\s*(YES|NO)\s*(?:—\s*(.+?))?(?:\n|$)'),
+            ('price_escalation', r'6\.6 Price Escalation:\s*(?:\[(\w+):?([\d,]*)\])?\s*(YES|NO)\s*(?:—\s*(.+?))?(?:\n|$)'),
+            ('exclusivity', r'6\.7 Exclusivity:\s*(?:\[(\w+):?([\d,]*)\])?\s*(YES|NO)\s*(?:—\s*(.+?))?(?:\n|$)'),
+            ('indemnification', r'6\.8 Indemnification:\s*(?:\[(\w+):?([\d,]*)\])?\s*(YES|NO)\s*(?:—\s*(.+?))?(?:\n|$)'),
+        ]
+
+        for clause_key, pattern in clause_types:
+            clause_match = re.search(pattern, extracted_text, re.IGNORECASE)
+            if clause_match:
+                present = clause_match.group(3).upper() == 'YES'
+                description = clause_match.group(4).strip() if clause_match.group(4) else None
+                signal = clause_match.group(1).upper() if clause_match.group(1) else 'EXPLICIT'
+                page_str = clause_match.group(2) or ''
+                pages = [int(p) for p in page_str.split(',') if p] if page_str else []
+                data['clauses'][clause_key] = {
+                    'present': present,
+                    'description': description,
+                }
+                signals[f'clause_{clause_key}'] = signal
+                data['page_refs'][f'clause_{clause_key}'] = pages
 
         # Calculate confidence scores for all fields
         data['confidence'] = calculate_all_confidence_scores(data, signals)
@@ -251,6 +310,7 @@ def calculate_format_score(field_name, value):
         'duration': r'\d+\s*(year|month|day)s?',
         'email': r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$',
         'currency_amount': r'^\$?[\d,]+(?:\.\d{2})?$',
+        'payment_terms': r'^Net\s+\d+$',
     }
 
     # Map field names to pattern types
@@ -263,6 +323,7 @@ def calculate_format_score(field_name, value):
         'billing_contact_email': 'email',
         'onboarding_fee': 'currency_amount',
         'annual_fees': 'currency_amount',
+        'payment_terms': 'payment_terms',
     }
 
     pattern_key = field_to_pattern.get(field_name)
@@ -372,6 +433,7 @@ def calculate_all_confidence_scores(parsed_data, signals):
         'subscription_end',
         'duration',
         'onboarding_fee',
+        'payment_terms',
     ]
 
     for field in simple_fields:
@@ -440,14 +502,18 @@ CRITICAL INSTRUCTIONS:
 4. If a field is not found or is blank, write "Not specified"
 5. Copy footnotes VERBATIM - do not summarize
 
-EXTRACTION SIGNALS (REQUIRED):
-For EACH field value, include a signal in square brackets indicating how you found it:
-- [EXPLICIT]: Value found exactly as labeled in the document (e.g., "Customer Name: Acme Corp")
-- [INFERRED]: Value derived from context or calculation (e.g., duration calculated from dates)
-- [PARTIAL]: Only some information found (e.g., name without email for contacts)
-- [MULTIPLE]: Multiple conflicting values found; using the most recent/prominent one
-- [NOT_FOUND]: Field not present in document - use "Not specified" as value
+EXTRACTION SIGNALS WITH PAGE REFERENCES (REQUIRED):
+For EACH field value, include a signal in square brackets indicating how you found it AND the page number(s) where found.
+Format: [SIGNAL:PAGE_NUM] or [SIGNAL:PAGE1,PAGE2] for multiple pages.
 
+Signal types:
+- [EXPLICIT:N]: Value found exactly as labeled on page N
+- [INFERRED:N,M]: Value derived from context on pages N and M
+- [PARTIAL:N]: Only some information found on page N
+- [MULTIPLE:N,M]: Multiple conflicting values found on pages N and M; using the most recent/prominent one
+- [NOT_FOUND:0]: Field not present in document - use "Not specified" as value
+
+Page numbers correspond to the "--- Page N ---" markers in the text below.
 Place the signal BEFORE the value on the same line.
 
 OUTPUT FORMAT (use this EXACT structure - NO horizontal lines or dividers):
@@ -455,9 +521,9 @@ OUTPUT FORMAT (use this EXACT structure - NO horizontal lines or dividers):
 CONTRACT SUMMARY OF [CUSTOMER NAME]
 
 1. CONTACT INFORMATION
-   1.1 Customer Legal Name: [SIGNAL] [Extract the customer/company name]
-   1.2 Point of Contact: [SIGNAL] [Name] <[email]>
-   1.3 Billing Contact: [SIGNAL] [Name] <[email]>
+   1.1 Customer Legal Name: [SIGNAL:PAGE] [Extract the customer/company name]
+   1.2 Point of Contact: [SIGNAL:PAGE] [Name] <[email]>
+   1.3 Billing Contact: [SIGNAL:PAGE] [Name] <[email]>
 
 2. SERVICES & MODULES
    2.1 Included Modules:
@@ -465,19 +531,19 @@ CONTRACT SUMMARY OF [CUSTOMER NAME]
 
 3. CONTRACT TERMS & FEES
    3.1 Subscription Period
-       Start Date: [SIGNAL] [Date]
-       End Date: [SIGNAL] [Date]
-       Duration: [SIGNAL] [Calculate total years/months]
+       Start Date: [SIGNAL:PAGE] [Date]
+       End Date: [SIGNAL:PAGE] [Date]
+       Duration: [SIGNAL:PAGE,PAGE] [Calculate total years/months]
 
    3.2 Annual Software Fees
-       Year 1: [SIGNAL] $[amount] [CURRENCY]
-       Year 2: [SIGNAL] $[amount] [CURRENCY]
-       Year 3: [SIGNAL] $[amount] [CURRENCY]
+       Year 1: [SIGNAL:PAGE] $[amount] [CURRENCY]
+       Year 2: [SIGNAL:PAGE] $[amount] [CURRENCY]
+       Year 3: [SIGNAL:PAGE] $[amount] [CURRENCY]
        [Continue for all years in contract - ONLY non-crossed-out amounts]
 
    3.3 Onboarding Services
-       Payment Terms: [SIGNAL] [e.g., "Invoiced on Signing Date net 30"]
-       One-Time Fee: [SIGNAL] $[amount] [CURRENCY]
+       Payment Terms: [SIGNAL:PAGE] [Extract ONLY the net payment window — e.g., "Net 30", "Net 60", "Net 90". Look for "net" followed by a number in phrases like "payable ... net 30 of the reception of an invoice". Output ONLY as "Net [number]". Do NOT populate with billing trigger language like "invoiced on signing date" or "due upon receipt". If no "net [number]" language exists, use "Not specified".]
+       One-Time Fee: [SIGNAL:PAGE] $[amount] [CURRENCY]
 
    3.4 Notes & Conditions
        [Copy ANY footnotes, asterisk notes, or conditions EXACTLY as written]
@@ -486,14 +552,27 @@ CONTRACT SUMMARY OF [CUSTOMER NAME]
    This Order Form is entered into pursuant to the Master Service Agreement dated [DATE].
 
 5. SIGNATURES
-   5.1 Customer: [SIGNAL] [Name], [Title] — Signed: [Date]
-   5.2 Vendor: [SIGNAL] [Name], [Title] — Signed: [Date]
+   5.1 Customer: [SIGNAL:PAGE] [Name], [Title] — Signed: [Date]
+   5.2 Vendor: [SIGNAL:PAGE] [Name], [Title] — Signed: [Date]
+
+6. KEY CLAUSES
+   For each clause type below, indicate YES or NO and include a brief description if the clause is present.
+   6.1 Auto-Renewal: [SIGNAL:PAGE] YES/NO — [brief description if yes, e.g. "Renews annually unless 90-day notice"]
+   6.2 Termination for Convenience: [SIGNAL:PAGE] YES/NO — [brief description if yes]
+   6.3 SLA Guarantee: [SIGNAL:PAGE] YES/NO — [brief description if yes]
+   6.4 Liability Cap: [SIGNAL:PAGE] YES/NO — [brief description if yes]
+   6.5 Data Processing / DPA: [SIGNAL:PAGE] YES/NO — [brief description if yes]
+   6.6 Price Escalation: [SIGNAL:PAGE] YES/NO — [brief description if yes]
+   6.7 Exclusivity: [SIGNAL:PAGE] YES/NO — [brief description if yes]
+   6.8 Indemnification: [SIGNAL:PAGE] YES/NO — [brief description if yes]
 
 EXAMPLE OUTPUT:
-   1.1 Customer Legal Name: [EXPLICIT] Acme Corporation Inc.
-   Start Date: [EXPLICIT] January 1, 2024
-   Duration: [INFERRED] 3 years
-   1.2 Point of Contact: [PARTIAL] John Smith <Not specified>
+   1.1 Customer Legal Name: [EXPLICIT:1] Acme Corporation Inc.
+   Start Date: [EXPLICIT:2] January 1, 2024
+   Duration: [INFERRED:2,3] 3 years
+   1.2 Point of Contact: [PARTIAL:1] John Smith <Not specified>
+   6.1 Auto-Renewal: [EXPLICIT:4] YES — Auto-renews for successive 1-year terms unless 90-day written notice
+   6.3 SLA Guarantee: [NOT_FOUND:0] NO
 
 ---
 
@@ -509,7 +588,7 @@ Extract the information following the EXACT format above. Remember:
 - Use "Not specified" for missing fields
 - Do NOT include horizontal line dividers (═══ or ───)
 - For Section 4, ONLY output the MSA reference date - nothing else
-- ALWAYS include the extraction signal [EXPLICIT], [INFERRED], [PARTIAL], [MULTIPLE], or [NOT_FOUND] before each value"""
+- ALWAYS include the extraction signal with page reference [EXPLICIT:N], [INFERRED:N], [PARTIAL:N], [MULTIPLE:N,M], or [NOT_FOUND:0] before each value"""
 
     message = client.messages.create(
         model="claude-sonnet-4-20250514",
@@ -921,6 +1000,149 @@ def send_email():
         return jsonify(result)
     else:
         return jsonify(result), 500
+
+
+@app.route('/send-slack', methods=['POST'])
+def send_slack():
+    """Send contract summary to Slack via incoming webhook"""
+    data = request.get_json()
+
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+    webhook_url = data.get('webhook_url')
+    parsed_data = data.get('parsed_data')
+
+    if not webhook_url:
+        return jsonify({'success': False, 'error': 'Slack webhook URL is required'}), 400
+    if not parsed_data:
+        return jsonify({'success': False, 'error': 'No contract data provided'}), 400
+
+    # Build Slack Block Kit message
+    customer = parsed_data.get('customer_name', 'Unknown')
+    total = parsed_data.get('total_contract_value', 0)
+    currency = parsed_data.get('currency', 'CAD')
+    duration = parsed_data.get('duration', 'N/A')
+    start = parsed_data.get('subscription_start', 'N/A')
+    end = parsed_data.get('subscription_end', 'N/A')
+    poc = parsed_data.get('point_of_contact', {})
+    poc_name = poc.get('name', 'N/A')
+    poc_email = poc.get('email', '')
+
+    fees_lines = []
+    for fee in parsed_data.get('annual_fees', []):
+        fees_lines.append(f"Year {fee['year']}: ${fee['amount']:,.0f} {fee.get('currency', currency)}")
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": f"Contract Extracted: {customer}"}
+        },
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*Total Value:*\n${total:,.2f} {currency}"},
+                {"type": "mrkdwn", "text": f"*Duration:*\n{duration}"},
+                {"type": "mrkdwn", "text": f"*Period:*\n{start} - {end}"},
+                {"type": "mrkdwn", "text": f"*Contact:*\n{poc_name}" + (f" ({poc_email})" if poc_email else "")}
+            ]
+        }
+    ]
+
+    if fees_lines:
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*Annual Fees:*\n" + "\n".join(fees_lines)}
+        })
+
+    onboarding = parsed_data.get('onboarding_fee')
+    if onboarding:
+        blocks.append({
+            "type": "context",
+            "elements": [{"type": "mrkdwn", "text": f"Onboarding Fee: ${onboarding:,.2f} {currency}"}]
+        })
+
+    payload = {"blocks": blocks}
+
+    try:
+        resp = http_requests.post(webhook_url, json=payload, timeout=10)
+        if resp.status_code == 200:
+            return jsonify({'success': True, 'message': 'Posted to Slack'})
+        else:
+            return jsonify({'success': False, 'error': f'Slack returned status {resp.status_code}: {resp.text}'}), 502
+    except http_requests.exceptions.Timeout:
+        return jsonify({'success': False, 'error': 'Slack webhook timed out'}), 504
+    except http_requests.exceptions.RequestException as e:
+        return jsonify({'success': False, 'error': f'Failed to reach Slack: {str(e)}'}), 502
+
+
+@app.route('/push-to-sheets', methods=['POST'])
+def push_to_sheets():
+    """Push contract data as a new row to a Google Sheet"""
+    if 'session_id' not in session:
+        return jsonify({'success': False, 'error': 'Not authenticated. Please connect your Google account.'}), 401
+
+    session_id = session['session_id']
+
+    if not email_service.is_authenticated(session_id):
+        return jsonify({'success': False, 'error': 'Not authenticated. Please connect your Google account.'}), 401
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+    spreadsheet_id = data.get('spreadsheet_id')
+    parsed_data = data.get('parsed_data')
+
+    if not spreadsheet_id:
+        return jsonify({'success': False, 'error': 'Google Sheet ID is required'}), 400
+    if not parsed_data:
+        return jsonify({'success': False, 'error': 'No contract data provided'}), 400
+
+    try:
+        from googleapiclient.discovery import build
+
+        creds = email_service.get_credentials(session_id)
+        if not creds:
+            return jsonify({'success': False, 'error': 'No valid credentials'}), 401
+
+        service = build('sheets', 'v4', credentials=creds)
+
+        # Build row data
+        customer = parsed_data.get('customer_name', '')
+        total = parsed_data.get('total_contract_value', 0)
+        currency = parsed_data.get('currency', 'CAD')
+        duration = parsed_data.get('duration', '')
+        start = parsed_data.get('subscription_start', '')
+        end = parsed_data.get('subscription_end', '')
+        poc = parsed_data.get('point_of_contact', {})
+        poc_name = poc.get('name', '')
+        poc_email = poc.get('email', '')
+        onboarding = parsed_data.get('onboarding_fee', 0) or 0
+
+        annual_fees_str = ', '.join(
+            [f"Y{f['year']}: ${f['amount']:,.0f}" for f in parsed_data.get('annual_fees', [])]
+        )
+
+        row = [
+            customer, f"${total:,.2f}", currency, duration,
+            start, end, poc_name, poc_email,
+            annual_fees_str, f"${onboarding:,.2f}",
+            parsed_data.get('notes', '')
+        ]
+
+        body = {'values': [row]}
+        service.spreadsheets().values().append(
+            spreadsheetId=spreadsheet_id,
+            range='Sheet1!A:K',
+            valueInputOption='USER_ENTERED',
+            body=body
+        ).execute()
+
+        return jsonify({'success': True, 'message': 'Row added to Google Sheet'})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Sheets API error: {str(e)}'}), 500
 
 
 @app.route('/pdf/<pdf_id>')

@@ -14,8 +14,11 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-# OAuth2 scopes for Gmail
-SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+# OAuth2 scopes for Gmail and Google Sheets
+SCOPES = [
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/spreadsheets'
+]
 
 # Token storage (in production, use a database or secure session storage)
 _token_storage = {}

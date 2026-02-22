@@ -8,3 +8,4 @@ google-api-python-client==2.100.0
 PyPDF2
 pdf2image
 pytesseract
+requests
