@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { AlertCircle, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FloatingDock } from '@/components/floating-dock'
-import { ThemeToggle } from '@/components/theme-toggle'
 import { CopyFeedback } from '@/components/copy-feedback'
 import { HomeView } from '@/components/views/home-view'
 import { ProcessingView } from '@/components/views/processing-view'
@@ -14,7 +13,7 @@ import { useRecentContracts } from '@/hooks/use-recent-contracts'
 import type { AppView, ContractResult, ContractRecord, GmailAuth, ProcessingStep } from '@/types/contract'
 
 export default function App() {
-  const { theme, toggleTheme } = useTheme()
+  useTheme()
   const { contracts: recentContracts, save: saveContract, clear: clearContracts } = useRecentContracts()
 
   const [view, setView] = useState<AppView>('home')
@@ -180,10 +179,6 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col bg-background">
-      <div className="fixed top-3 right-3 z-40">
-        <ThemeToggle theme={theme} onToggle={toggleTheme} />
-      </div>
-
       {showDock && (
         <FloatingDock
           status={getStatus()}

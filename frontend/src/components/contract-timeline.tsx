@@ -36,7 +36,7 @@ export function ContractTimeline({ parsed_data }: ContractTimelineProps) {
   const { start, end, todayPct, isActive, sigPct } = timeline
 
   return (
-    <div className="rounded-sm border border-border p-4">
+    <div className="rounded-sm border border-border bg-card p-4 shadow-card">
       <div className="mb-6 flex items-center justify-between">
         <span className="text-sm font-semibold text-muted-foreground">Contract Timeline</span>
         <div className="flex items-center gap-2">

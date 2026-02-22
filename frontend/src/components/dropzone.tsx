@@ -33,7 +33,7 @@ export function Dropzone({ onFileSelect, fill }: DropzoneProps) {
           ? 'border-primary bg-accent'
           : isHover
             ? 'border-muted-foreground bg-transparent'
-            : 'border-border bg-transparent'
+            : 'border-border bg-card shadow-card'
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}

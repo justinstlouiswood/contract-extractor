@@ -1,23 +1,12 @@
-import { useState, useEffect } from 'react'
-
-type Theme = 'light' | 'dark'
+import { useEffect } from 'react'
 
 /**
- * Light/dark theme hook with localStorage persistence and system preference fallback.
+ * Ensures the app is permanently in light mode.
+ * Cleans up any stale 'dark' class or localStorage from prior sessions.
  */
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const stored = localStorage.getItem('theme')
-    if (stored === 'light' || stored === 'dark') return stored
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  })
-
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-    localStorage.setItem('theme', theme)
-  }, [theme])
-
-  const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'))
-
-  return { theme, toggleTheme }
+    document.documentElement.classList.remove('dark')
+    localStorage.removeItem('theme')
+  }, [])
 }

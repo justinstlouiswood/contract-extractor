@@ -146,8 +146,8 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage }: PDFViewerPan
   if (!pdfId) return null
 
   return (
-    <div className="flex h-full flex-col p-3 pl-1.5">
-      <div className="flex flex-1 flex-col overflow-hidden rounded-sm border border-border bg-card">
+    <div className="flex h-full flex-col bg-surface-secondary p-3 pl-1.5">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-sm border border-border bg-card shadow-card">
         <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
           <span className="text-sm font-semibold text-muted-foreground">Source Document</span>
           <div className="flex items-center gap-1">

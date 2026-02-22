@@ -107,7 +107,7 @@ export function HomeContractTable({ contracts, onSelect, onClear }: HomeContract
         </div>
       )}
 
-      <div className="rounded-sm border border-border">
+      <div className="rounded-sm border border-border bg-card shadow-card">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
