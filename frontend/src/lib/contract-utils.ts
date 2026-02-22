@@ -139,13 +139,13 @@ export function stripSourceTags(text: string): string {
 
 export function getTagColor(signal: string): string {
   const colors: Record<string, string> = {
-    'EXPLICIT': 'bg-[#0D1F14] text-[#4ADE80]',
-    'INFERRED': 'bg-[#1A1708] text-[#FACC15]',
-    'PARTIAL': 'bg-warning-bg text-warning-text',
-    'MULTIPLE': 'bg-neutral-bg text-neutral-text',
-    'NOT_FOUND': 'bg-[#1C1C22] text-[#9494A8]',
+    'EXPLICIT': 'bg-tag-explicit-bg text-tag-explicit-text',
+    'INFERRED': 'bg-tag-inferred-bg text-tag-inferred-text',
+    'PARTIAL': 'bg-tag-inferred-bg text-tag-inferred-text',
+    'MULTIPLE': 'bg-tag-notfound-bg text-tag-notfound-text',
+    'NOT_FOUND': 'bg-tag-notfound-bg text-tag-notfound-text',
   }
-  return colors[signal] || 'bg-neutral-bg text-neutral-text/70'
+  return colors[signal] || 'bg-muted text-muted-foreground/70'
 }
 
 // Export helpers
@@ -261,8 +261,8 @@ export function formatShortDate(date: Date): string {
 // ============================================
 
 export function getHeatmapColor(score: number): string {
-  if (score >= 85) return 'oklch(0.30 0.04 155)' // success — green
-  return 'oklch(0.28 0.04 25)'                    // danger — red
+  if (score >= 85) return 'var(--success-bg)'
+  return 'var(--danger-bg)'
 }
 
 export function getConfidenceFieldLabel(key: string): string {

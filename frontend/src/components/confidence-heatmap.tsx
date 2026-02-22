@@ -37,7 +37,7 @@ export function ConfidenceHeatmap({ parsed_data }: ConfidenceHeatmapProps) {
   if (tiers.length === 0) return null
 
   return (
-    <div className="rounded-lg border border-border p-3">
+    <div className="rounded-sm border border-border p-3">
       <div className="mb-2.5 flex items-center justify-between">
         <span className="text-sm font-semibold text-muted-foreground">Extraction Confidence</span>
         <span className="text-sm text-muted-foreground">avg {avg}%</span>
@@ -47,7 +47,7 @@ export function ConfidenceHeatmap({ parsed_data }: ConfidenceHeatmapProps) {
         {tiers.map((tier, tierIdx) => (
           <div key={tier.label} className={tierIdx > 0 ? 'border-t border-border pt-2.5' : ''}>
             <div className={`mb-1 text-xs font-medium ${
-              tier.label === 'High Confidence' ? 'text-[#4ADE80]' : 'text-[#F87171]'
+              tier.label === 'High Confidence' ? 'text-success-text' : 'text-danger-text'
             }`}>
               {tier.label}
             </div>

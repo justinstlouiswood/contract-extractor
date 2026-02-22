@@ -94,7 +94,7 @@ export function ReviewFieldTable({
               <TableCell className="px-2 py-2 text-sm text-muted-foreground">
                 {field.label}
                 {needsReview && (
-                  <span className="ml-1.5 rounded-md border border-[#7F1D1D] bg-[#1F0D0D] px-1 py-0.5 text-xs font-medium text-[#F87171]">
+                  <span className="ml-1.5 rounded-md border border-review-border bg-review-bg px-1 py-0.5 text-xs font-medium text-review-text">
                     Review
                   </span>
                 )}
@@ -126,7 +126,7 @@ export function ReviewFieldTable({
                       <span className="text-sm">{displayValue || '\u2014'}</span>
                     )}
                     {editedFields[field.key] !== undefined && (
-                      <span className="rounded-md bg-info-bg px-1 py-0.5 text-xs font-medium text-info-text">
+                      <span className="rounded-md bg-muted px-1 py-0.5 text-xs font-medium text-muted-foreground">
                         Edited
                       </span>
                     )}

@@ -7,12 +7,12 @@ interface ThemeToggleProps {
 
 export function ThemeToggle({ theme, onToggle }: ThemeToggleProps) {
   return (
-    <div className="inline-flex items-center gap-0.5 rounded-lg bg-[var(--toggle-bg)] p-1">
+    <div className="inline-flex items-center gap-0.5 rounded-sm bg-toggle-bg p-1">
       <button
         onClick={() => theme !== 'light' && onToggle()}
-        className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 ${
+        className={`inline-flex items-center gap-1.5 rounded-sm px-3 py-1 text-xs font-medium transition-all duration-150 ${
           theme === 'light'
-            ? 'bg-[var(--toggle-active)] shadow-toggle-active opacity-100'
+            ? 'bg-toggle-active opacity-100'
             : 'bg-transparent opacity-50 hover:opacity-70'
         }`}
       >
@@ -21,9 +21,9 @@ export function ThemeToggle({ theme, onToggle }: ThemeToggleProps) {
       </button>
       <button
         onClick={() => theme !== 'dark' && onToggle()}
-        className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 ${
+        className={`inline-flex items-center gap-1.5 rounded-sm px-3 py-1 text-xs font-medium transition-all duration-150 ${
           theme === 'dark'
-            ? 'bg-[var(--toggle-active)] shadow-toggle-active opacity-100'
+            ? 'bg-toggle-active opacity-100'
             : 'bg-transparent opacity-50 hover:opacity-70'
         }`}
       >

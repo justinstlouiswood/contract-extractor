@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { AlertCircle, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FloatingDock } from '@/components/floating-dock'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { CopyFeedback } from '@/components/copy-feedback'
 import { HomeView } from '@/components/views/home-view'
 import { ProcessingView } from '@/components/views/processing-view'
@@ -13,7 +14,7 @@ import { useRecentContracts } from '@/hooks/use-recent-contracts'
 import type { AppView, ContractResult, ContractRecord, GmailAuth, ProcessingStep } from '@/types/contract'
 
 export default function App() {
-  useTheme()
+  const { theme, toggleTheme } = useTheme()
   const { contracts: recentContracts, save: saveContract, clear: clearContracts } = useRecentContracts()
 
   const [view, setView] = useState<AppView>('home')
@@ -179,6 +180,10 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col bg-background">
+      <div className="fixed top-3 right-3 z-40">
+        <ThemeToggle theme={theme} onToggle={toggleTheme} />
+      </div>
+
       {showDock && (
         <FloatingDock
           status={getStatus()}
@@ -193,7 +198,7 @@ export default function App() {
         <div className={`flex ${showPdf ? 'max-w-[2000px]' : 'max-w-[1200px]'} w-full`}>
           <div className={`overflow-auto ${showPdf ? 'w-1/2 min-w-0' : 'w-full'}`}>
             {error && (
-              <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-danger-ring bg-danger-bg px-3 py-2 text-xs text-danger-text">
+              <div className="mx-4 mt-3 flex items-center gap-2 rounded-sm border border-danger-ring bg-danger-bg px-3 py-2 text-xs text-danger-text">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                 <span className="flex-1">{error}</span>
                 <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setError(null)}>

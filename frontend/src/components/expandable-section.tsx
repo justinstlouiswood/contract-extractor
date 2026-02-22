@@ -17,7 +17,7 @@ interface ExpandableSectionProps {
 export function ExpandableSection({ title, fieldCount, isExpanded, onToggle, children, isVerified, onVerify }: ExpandableSectionProps) {
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
-      <div className="flex items-center gap-2.5 rounded-lg border border-border px-4 py-3">
+      <div className="flex items-center gap-2.5 rounded-sm border border-border px-4 py-3">
         {onVerify !== undefined && (
           <Checkbox
             checked={isVerified}
@@ -33,7 +33,7 @@ export function ExpandableSection({ title, fieldCount, isExpanded, onToggle, chi
         </CollapsibleTrigger>
       </div>
       <CollapsibleContent>
-        <div className="rounded-b-lg border-x border-b border-border px-2 pb-2">
+        <div className="rounded-b-sm border-x border-b border-border px-2 pb-2">
           {children}
         </div>
       </CollapsibleContent>

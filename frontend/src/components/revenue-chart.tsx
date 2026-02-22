@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, ComposedChart } from 'recharts'
 import { formatCurrency } from '@/lib/contract-utils'
 import type { AnnualFee } from '@/types/contract'
@@ -17,7 +18,7 @@ interface TooltipPayloadEntry {
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipPayloadEntry[]; label?: string }) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2 shadow-card">
+    <div className="rounded-sm border border-border bg-card px-3 py-2">
       <p className="mb-1 text-sm font-semibold">{label}</p>
       {payload.map((entry: TooltipPayloadEntry, idx: number) => (
         <p key={idx} className="text-sm text-muted-foreground">
@@ -56,7 +57,7 @@ function EscalationLabel(props: any) {
         y={y - 14}
         textAnchor="middle"
         className="fill-foreground"
-        style={{ fontSize: 12, fontWeight: 600, fontFamily: "Georgia, 'Times New Roman', Times, serif" }}
+        style={{ fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif" }}
       >
         {pct > 0 ? '+' : ''}{pct.toFixed(1)}%
       </text>
@@ -64,8 +65,25 @@ function EscalationLabel(props: any) {
   )
 }
 
+function useChartColors() {
+  return useMemo(() => {
+    const style = getComputedStyle(document.documentElement)
+    const moss = style.getPropertyValue('--moss').trim()
+    const sage = style.getPropertyValue('--sage').trim()
+    return {
+      mossColor: moss,
+      sageColor: sage,
+      mossFill: moss,
+      sageFill: sage,
+      cumulativeColor: style.getPropertyValue('--muted-foreground').trim() || '#8A8A8A',
+    }
+  }, [])
+}
+
 export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: RevenueChartProps) {
   if (!annualFees || annualFees.length === 0) return null
+
+  const { mossColor, sageColor, mossFill, sageFill, cumulativeColor } = useChartColors()
 
   let cumulative = onboardingFee && onboardingFee > 0 ? onboardingFee : 0
   const data = annualFees.map((fee, i) => {
@@ -79,12 +97,6 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
   })
 
   const hasOnboarding = onboardingFee && onboardingFee > 0
-
-  const mossColor = 'oklch(0.50 0.08 155)'
-  const sageColor = 'oklch(0.65 0.06 155)'
-  const mossFill = 'oklch(0.50 0.08 155 / 0.85)'
-  const sageFill = 'oklch(0.65 0.06 155 / 0.85)'
-  const cumulativeColor = 'oklch(0.60 0 0 / 0.8)'
 
   return (
     <div className="mt-3 space-y-2 px-1">
@@ -140,7 +152,7 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
               fill={mossFill}
               stroke={mossColor}
               strokeWidth={1}
-              radius={[3, 3, 0, 0]}
+              radius={[2, 2, 0, 0]}
               label={<EscalationLabel data={data} />}
             />
             {hasOnboarding && (
@@ -151,7 +163,7 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
                 fill={sageFill}
                 stroke={sageColor}
                 strokeWidth={1}
-                radius={[3, 3, 0, 0]}
+                radius={[2, 2, 0, 0]}
               />
             )}
             <Line

@@ -14,7 +14,7 @@ interface HomeViewProps {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-1 flex-col gap-2 rounded-lg border border-border bg-card p-6">
+    <div className="flex flex-1 flex-col gap-2 rounded-sm border border-border bg-card p-6">
       <span className="text-xs font-normal text-muted-foreground">{label}</span>
       <span className="text-[28px] font-semibold leading-tight tracking-tight">{value}</span>
     </div>
@@ -59,8 +59,8 @@ export function HomeView({ recentContracts, onFileSelect, onSelectContract, onCl
             {hasContracts ? (
               <HomeContractTable contracts={recentContracts} onSelect={onSelectContract} onClear={onClearRecents} />
             ) : (
-              <div className="flex h-full items-center justify-center rounded-lg border border-border bg-card p-12">
-                <p className="text-sm italic text-[#9494A8]">
+              <div className="flex h-full items-center justify-center rounded-sm border border-border bg-card p-12">
+                <p className="text-sm italic text-muted-alt">
                   No extractions yet. Upload your first MSA to get started.
                 </p>
               </div>

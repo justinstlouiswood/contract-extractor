@@ -147,7 +147,7 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage }: PDFViewerPan
 
   return (
     <div className="flex h-full flex-col p-3 pl-1.5">
-      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-sm border border-border bg-card">
         <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
           <span className="text-sm font-semibold text-muted-foreground">Source Document</span>
           <div className="flex items-center gap-1">
@@ -177,7 +177,7 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage }: PDFViewerPan
           {!loading && !error && (
             <div className="flex flex-col items-center gap-2 p-2">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
-                <div key={pageNum} className="pdf-page-wrapper relative overflow-hidden rounded-lg border border-border/50">
+                <div key={pageNum} className="pdf-page-wrapper relative overflow-hidden rounded-sm border border-border/50">
                   <canvas ref={el => { canvasRefs.current[pageNum] = el }} className="block max-w-full" />
                   <div ref={el => { textLayerRefs.current[pageNum] = el }} className="absolute inset-0 overflow-hidden" />
                   <div className="py-0.5 text-center text-xs text-muted-foreground">

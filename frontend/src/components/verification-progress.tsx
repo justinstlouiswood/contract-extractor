@@ -11,7 +11,7 @@ export function VerificationProgress({ verified, total, onMarkAll }: Verificatio
   const pct = total > 0 ? (verified / total) * 100 : 0
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg border border-border p-4">
+    <div className="flex flex-col gap-2.5 rounded-sm border border-border p-4">
       <div className="flex items-center justify-between">
         <span className="text-sm text-muted-foreground">
           <span className="tabular-nums">{verified} / {total}</span> categories verified
@@ -26,7 +26,7 @@ export function VerificationProgress({ verified, total, onMarkAll }: Verificatio
         )}
       </div>
       <Progress value={pct} className="h-2.5" />
-      <span className="text-xs text-[#9494A8]">
+      <span className="text-xs text-muted-alt">
         {verified} of {total} verified
       </span>
     </div>

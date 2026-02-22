@@ -58,10 +58,10 @@ export function SummaryCard({
               : '\u2014'}
           </span>
           {parsed_data.total_contract_value && parsed_data.total_contract_value > 0 && (
-            <span className="text-xs font-normal text-[#9494A8]">{currency}</span>
+            <span className="text-xs font-normal text-muted-alt">{currency}</span>
           )}
           {tcvNeedsReview && (
-            <span className="ml-1 rounded-md border border-[#7F1D1D] bg-[#1F0D0D] px-1.5 py-0.5 text-xs font-medium text-[#F87171]">
+            <span className="ml-1 rounded-md border border-review-border bg-review-bg px-1.5 py-0.5 text-xs font-medium text-review-text">
               Review
             </span>
           )}

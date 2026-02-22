@@ -13,7 +13,7 @@ interface FloatingDockProps {
 export function FloatingDock({ status, onBack, onStop, onConfirmComplete, onRejectComplete }: FloatingDockProps) {
   return (
     <div className="fixed top-4 left-1/2 z-50 -translate-x-1/2">
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-lg">
+      <div className="flex items-center gap-2 rounded-sm border border-border bg-card px-3 py-2">
         <Button variant="ghost" size="sm" onClick={onBack} className="h-7 gap-1.5 px-2 text-xs font-medium">
           <ArrowLeft className="h-3.5 w-3.5" />
           Back

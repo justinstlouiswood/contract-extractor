@@ -21,13 +21,13 @@ const badgeVariants = cva(
         success:
           "bg-success-bg text-success-text border-success-ring",
         warning:
-          "bg-warning-bg text-warning-text border-warning-ring animate-pulse",
+          "bg-danger-bg text-danger-text border-danger-ring",
         danger:
           "bg-danger-bg text-danger-text border-danger-ring",
         info:
-          "bg-info-bg text-info-text border-info-ring",
+          "bg-muted text-muted-foreground border-border",
         extracted:
-          "rounded-md bg-[#0D1F14] text-[#4ADE80] border-[#1F5C32]",
+          "rounded-md bg-extracted-bg text-extracted-text border-extracted-border",
       },
     },
     defaultVariants: {

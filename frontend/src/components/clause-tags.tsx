@@ -31,9 +31,9 @@ export function ClauseTags({ clauses }: ClauseTagsProps) {
             }`}
           >
             {info.present ? (
-              <span className="text-[#4ADE80]">+</span>
+              <span className="text-success-text">+</span>
             ) : (
-              <span className="text-[#F87171]">{'\u2212'}</span>
+              <span className="text-danger-text">{'\u2212'}</span>
             )}{' '}
             {CLAUSE_LABELS[key] || key}
           </div>

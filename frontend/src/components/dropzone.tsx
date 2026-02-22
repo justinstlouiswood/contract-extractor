@@ -26,7 +26,7 @@ export function Dropzone({ onFileSelect, fill }: DropzoneProps) {
 
   return (
     <div
-      className={`flex cursor-pointer flex-col items-center justify-center rounded-lg p-12 transition-colors ${
+      className={`flex cursor-pointer flex-col items-center justify-center rounded-sm p-12 transition-colors ${
         fill ? 'h-full' : ''
       } ${isDashedState ? 'border-2 border-dashed' : 'border border-solid'} ${
         isDragOver

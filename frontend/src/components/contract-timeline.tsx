@@ -36,12 +36,12 @@ export function ContractTimeline({ parsed_data }: ContractTimelineProps) {
   const { start, end, todayPct, isActive, sigPct } = timeline
 
   return (
-    <div className="rounded-lg border border-border p-4">
+    <div className="rounded-sm border border-border p-4">
       <div className="mb-6 flex items-center justify-between">
         <span className="text-sm font-semibold text-muted-foreground">Contract Timeline</span>
         <div className="flex items-center gap-2">
           {!isActive && new Date() > end && (
-            <span className="rounded-md border border-[#7F1D1D] bg-[#1F0D0D] px-2 py-0.5 text-xs font-medium text-[#F87171]">
+            <span className="rounded-md border border-review-border bg-review-bg px-2 py-0.5 text-xs font-medium text-review-text">
               Expired
             </span>
           )}
