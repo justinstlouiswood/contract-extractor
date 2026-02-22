@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { ZoomIn, ZoomOut } from 'lucide-react'
+import { ZoomIn, ZoomOut, FileX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import * as pdfjsLib from 'pdfjs-dist'
 
@@ -8,59 +8,88 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString()
 
+type PdfStatus = 'idle' | 'checking' | 'loading' | 'ready' | 'not_found' | 'load_error'
+
 interface PDFViewerPanelProps {
   pdfId: string | null
   scrollToPage: number | null
+  onPdfUnavailable?: () => void
 }
 
-export function PDFViewerPanel({ pdfId, scrollToPage: targetPage }: PDFViewerPanelProps) {
+export function PDFViewerPanel({ pdfId, scrollToPage: targetPage, onPdfUnavailable }: PDFViewerPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRefs = useRef<Record<number, HTMLCanvasElement | null>>({})
   const textLayerRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const renderingRef = useRef<Record<number, boolean>>({})
   const renderGenRef = useRef(0)
+  const abortRef = useRef<AbortController | null>(null)
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null)
   const [totalPages, setTotalPages] = useState(0)
   const [scale, setScale] = useState(1.75)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [pdfStatus, setPdfStatus] = useState<PdfStatus>('idle')
 
-  const loadPdf = useCallback(async (id: string, attempt = 1) => {
+  const loadPdf = useCallback(async (id: string, signal: AbortSignal) => {
+    // Step 1: Pre-flight check — does the file exist on disk?
+    setPdfStatus('checking')
+    try {
+      const checkResp = await fetch(`/pdf/${id}/check`, { signal })
+      if (checkResp.status === 404) {
+        setPdfStatus('not_found')
+        onPdfUnavailable?.()
+        return
+      }
+      // Non-404 errors (500, network) — proceed optimistically
+    } catch (err) {
+      if (signal.aborted) return
+      // Check failed (network error) — proceed optimistically to actual load
+    }
+
+    if (signal.aborted) return
+
+    // Step 2: Load the PDF document
+    setPdfStatus('loading')
     try {
       const pdf = await pdfjsLib.getDocument(`/pdf/${id}`).promise
+      if (signal.aborted) return
       setPdfDoc(pdf)
       setTotalPages(pdf.numPages)
-      setLoading(false)
+      setPdfStatus('ready')
     } catch {
-      if (attempt === 1) {
-        // Retry once after brief delay
-        setTimeout(() => loadPdf(id, 2), 500)
-      } else {
-        setError('PDF unavailable')
-        setLoading(false)
-      }
+      if (signal.aborted) return
+      setPdfStatus('load_error')
     }
-  }, [])
+  }, [onPdfUnavailable])
 
   useEffect(() => {
-    if (!pdfId) return
-    setLoading(true)
-    setError(null)
+    if (!pdfId) {
+      setPdfStatus('idle')
+      return
+    }
+
     setPdfDoc(null)
     setTotalPages(0)
     renderGenRef.current += 1
 
-    loadPdf(pdfId)
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    loadPdf(pdfId, controller.signal)
+
+    return () => { controller.abort() }
   }, [pdfId, loadPdf])
 
   const handleRetry = useCallback(() => {
     if (!pdfId) return
-    setLoading(true)
-    setError(null)
     setPdfDoc(null)
     setTotalPages(0)
     renderGenRef.current += 1
-    loadPdf(pdfId)
+
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    loadPdf(pdfId, controller.signal)
   }, [pdfId, loadPdf])
 
   const renderPage = useCallback(async (pageNum: number, gen: number) => {
@@ -162,19 +191,38 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage }: PDFViewerPan
         </div>
 
         <div className="flex-1 overflow-auto" ref={containerRef}>
-          {loading && <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">Loading PDF...</div>}
-          {error && (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-              <span className="text-sm text-muted-foreground">{error}</span>
+          {(pdfStatus === 'checking' || pdfStatus === 'loading') && (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
               <span className="text-sm text-muted-foreground">
-                The source file may have expired. Re-upload the document to view it.
+                {pdfStatus === 'checking' ? 'Checking document availability...' : 'Loading document...'}
+              </span>
+            </div>
+          )}
+
+          {pdfStatus === 'not_found' && (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+              <FileX className="h-8 w-8 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">Source document expired</span>
+              <span className="text-sm text-muted-foreground">
+                The PDF file is no longer available on the server.
+                Re-upload the document to view it alongside the extracted data.
+              </span>
+            </div>
+          )}
+
+          {pdfStatus === 'load_error' && (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+              <span className="text-sm text-muted-foreground">
+                Failed to load the document. This may be a temporary issue.
               </span>
               <Button variant="outline" size="sm" className="h-8 text-sm" onClick={handleRetry}>
                 Retry
               </Button>
             </div>
           )}
-          {!loading && !error && (
+
+          {pdfStatus === 'ready' && (
             <div className="flex flex-col items-center gap-2 p-2">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
                 <div key={pageNum} className="pdf-page-wrapper relative overflow-hidden rounded-sm border border-border/50">

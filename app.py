@@ -1033,6 +1033,20 @@ def serve_pdf(pdf_id):
     return send_file(pdf_path, mimetype='application/pdf')
 
 
+@app.route('/pdf/<pdf_id>/check')
+def check_pdf(pdf_id):
+    """Check if a PDF exists on disk without downloading it"""
+    try:
+        uuid.UUID(pdf_id)
+    except ValueError:
+        return jsonify({'exists': False}), 400
+
+    pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], f'{pdf_id}.pdf')
+    if os.path.exists(pdf_path):
+        return jsonify({'exists': True}), 200
+    return jsonify({'exists': False}), 404
+
+
 @app.route('/health')
 def health():
     """Simple health check endpoint"""

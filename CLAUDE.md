@@ -272,6 +272,7 @@ Right panel: PDF viewer in a `rounded-xl border border-border bg-card` container
 | `/send-slack` | POST | Post Block Kit message to Slack via incoming webhook |
 | `/push-to-sheets` | POST | Append row to Google Sheet |
 | `/pdf/<id>` | GET | Serve uploaded PDF for viewer |
+| `/pdf/<id>/check` | GET | Check if PDF exists on disk (200/404) |
 | `/auth/gmail` | GET | Initiate Gmail/Sheets OAuth |
 | `/auth/gmail/callback` | GET | OAuth callback |
 | `/auth/status` | GET | Check auth state |
@@ -379,8 +380,10 @@ FLASK_SECRET_KEY=optional-override
 
 - PDFs stored on disk at `uploads/<uuid>.pdf` via the `/upload` endpoint
 - Served to the frontend via `/pdf/<id>` Flask endpoint (`send_file`)
+- Availability checked via `/pdf/<id>/check` endpoint (returns `{exists: true/false}` with 200/404)
 - `pdfId` (UUID string) passed from `App.tsx` to `PDFViewerPanel` as a prop
-- `PDFViewerPanel` loads via `pdfjsLib.getDocument('/pdf/<id>')`
+- `PDFViewerPanel` pre-flight checks `/pdf/<id>/check` before loading with pdfjs. If 404, shows "Source document expired" and calls `onPdfUnavailable` to collapse the panel. If check passes, loads via `pdfjsLib.getDocument('/pdf/<id>')`
+- `PdfStatus` discriminated union (`idle | checking | loading | ready | not_found | load_error`) drives all viewer UI states
 - pdfjs-dist Web Worker requires `base: '/static/dist/'` in `vite.config.ts` so the worker URL resolves correctly under Flask's static file serving
 - Frontend bundle in `static/dist/` is committed to git and must be rebuilt (`cd frontend && npm run build`) before committing any frontend source changes
 
@@ -463,6 +466,29 @@ Phase 3 — Apply shadows and surface tokens:
 - Kept `useTheme()` hook as a cleanup stub rather than deleting entirely, to gracefully handle users with stale `.dark` class/localStorage from prior sessions
 - All radius tokens set to the same value (0.375rem) for uniform 6px corners everywhere
 - Two shadow tiers only: `shadow-card` (subtle) for cards, `shadow-float` (stronger) for overlays
+
+### Feb 22, 2026 — Permanent PDF Viewer Fix (Third Occurrence)
+
+**Problem:** PDF preview panel repeatedly shows "PDF unavailable / The source file may have expired." This is the third occurrence across redesigns. Prior fixes (stale bundles, worker URLs) addressed symptoms but not the architectural gap.
+
+**Root causes (three compounding issues):**
+1. **Stale pdfId from localStorage**: `handleSelectContract` restored `pdf_id` from localStorage, but the actual PDF file at `uploads/<uuid>.pdf` may have been deleted (server restart, Railway redeploy). The viewer blindly fetched `/pdf/<uuid>`, got 404, retried once (same 404), and showed generic "PDF unavailable"
+2. **No pre-flight validation**: `PDFViewerPanel.loadPdf()` went straight to `pdfjsLib.getDocument()` without checking if the file existed. Retry logic didn't distinguish between permanent 404 (file deleted) and transient network errors
+3. **State management gaps**: `setPdfId` was conditional (`if (result.pdf_id)`) leaving stale values; `handleStop` and `processFile` didn't clear pdfId; `handleSelectContract` didn't include `pdf_id` in the ContractResult object
+
+**Fix:**
+- Added `/pdf/<id>/check` endpoint to `app.py` — lightweight existence check (JSON + status code, no file download)
+- Rewrote `PDFViewerPanel` with discriminated `PdfStatus` union type (`idle | checking | loading | ready | not_found | load_error`), pre-flight check before pdfjs load, AbortController cleanup, differentiated error states (permanent "expired" vs transient "retry"), spinner instead of plain text loading
+- Added `onPdfUnavailable` callback — when PDF is permanently gone, parent clears pdfId and layout collapses from 50/50 split to full-width review (extracted data works without PDF)
+- Fixed `App.tsx` state management: `setPdfId(result.pdf_id ?? null)` (never conditional), clear pdfId/scrollToPage in `processFile` and `handleStop`, include `pdf_id` in ContractResult object in `handleSelectContract`
+- Tightened `pdf_id` type from optional (`pdf_id?: string | null`) to required (`pdf_id: string | null`) on both `ContractResult` and `ContractRecord` — TypeScript enforces explicit handling
+- Rebuilt frontend bundle
+
+**Why this won't regress again:**
+- Pre-flight check distinguishes "file gone" from "network error" — no more blind retries on permanent failures
+- `onPdfUnavailable` callback creates a feedback loop: viewer tells parent, parent clears state, layout degrades gracefully
+- Required `pdf_id` type means TypeScript catches any future code path that forgets to set it
+- AbortController prevents state updates on unmounted components during navigation
 
 ---
 

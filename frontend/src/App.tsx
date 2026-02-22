@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { AlertCircle, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FloatingDock } from '@/components/floating-dock'
@@ -89,6 +89,8 @@ export default function App() {
     setFile(selectedFile)
     setView('processing')
     setCurrentContract(null)
+    setPdfId(null)
+    setScrollToPage(null)
     setSteps(s => s.map(step => ({ ...step, status: 'pending' as const, message: '' })))
 
     const formData = new FormData()
@@ -125,7 +127,7 @@ export default function App() {
       await new Promise(r => setTimeout(r, 500))
 
       saveContract(result)
-      if (result.pdf_id) setPdfId(result.pdf_id)
+      setPdfId(result.pdf_id ?? null)
       setCurrentContract(result)
       setView('detail')
     } catch (err) {
@@ -142,17 +144,21 @@ export default function App() {
 
   const handleStop = () => {
     if (abortControllerRef.current) abortControllerRef.current.abort()
+    setPdfId(null)
+    setScrollToPage(null)
     setView('home')
     setSteps(s => s.map(step => ({ ...step, status: 'pending' as const, message: '' })))
   }
 
   const handleSelectContract = (contract: ContractRecord) => {
+    const contractPdfId = contract.pdf_id || null
     setCurrentContract({
       parsed_data: contract.parsed_data,
       extracted_info: contract.extracted_info,
       summary: contract.summary,
+      pdf_id: contractPdfId,
     })
-    setPdfId(contract.pdf_id || null)
+    setPdfId(contractPdfId)
     setView('detail')
   }
 
@@ -162,6 +168,11 @@ export default function App() {
     setScrollToPage(null)
     setView('home')
   }
+
+  const handlePdfUnavailable = useCallback(() => {
+    setPdfId(null)
+    setScrollToPage(null)
+  }, [])
 
   const handleScrollToPage = (page: number) => {
     setScrollToPage(null)
@@ -230,7 +241,7 @@ export default function App() {
 
           {showPdf && (
             <div className="w-1/2 min-w-0 shrink-0">
-              <PDFViewerPanel pdfId={pdfId} scrollToPage={scrollToPage} />
+              <PDFViewerPanel pdfId={pdfId} scrollToPage={scrollToPage} onPdfUnavailable={handlePdfUnavailable} />
             </div>
           )}
         </div>

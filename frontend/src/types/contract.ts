@@ -47,7 +47,7 @@ export interface ContractResult {
   parsed_data: ParsedData
   extracted_info: string
   summary?: string
-  pdf_id?: string | null
+  pdf_id: string | null
 }
 
 export interface ContractRecord {
@@ -59,7 +59,7 @@ export interface ContractRecord {
   parsed_data: ParsedData
   extracted_info: string
   summary?: string
-  pdf_id?: string | null
+  pdf_id: string | null
 }
 
 export interface VerifiableField {
