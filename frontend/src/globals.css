@@ -149,8 +149,8 @@
   --tag-notfound-text: #A0A0A0;
 
   /* Chart accents */
-  --moss: #2D6A4F;
-  --sage: #52B788;
+  --moss: #334155;
+  --sage: #5A7DA6;
 }
 
 @layer base {

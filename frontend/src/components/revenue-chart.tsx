@@ -75,7 +75,7 @@ function useChartColors() {
       sageColor: sage,
       mossFill: moss,
       sageFill: sage,
-      cumulativeColor: style.getPropertyValue('--muted-foreground').trim() || '#8A8A8A',
+      cumulativeColor: '#5EAFC0',
     }
   }, [])
 }
@@ -83,7 +83,7 @@ function useChartColors() {
 export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: RevenueChartProps) {
   if (!annualFees || annualFees.length === 0) return null
 
-  const { mossColor, sageColor, mossFill, sageFill, cumulativeColor } = useChartColors()
+  const { mossColor, mossFill, sageFill, cumulativeColor } = useChartColors()
 
   let cumulative = onboardingFee && onboardingFee > 0 ? onboardingFee : 0
   const data = annualFees.map((fee, i) => {
@@ -112,7 +112,7 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
           </div>
         )}
         <div className="flex items-center gap-1.5">
-          <div className="h-px w-4 border-t border-dashed border-muted-foreground" />
+          <div className="h-px w-4 border-t border-dashed" style={{ borderColor: '#5EAFC0' }} />
           <span className="text-sm text-muted-foreground">Cumulative TCV</span>
         </div>
       </div>
@@ -125,7 +125,7 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
               tick={{ fontSize: 13 }}
               tickLine={false}
               axisLine={false}
-              className="fill-muted-foreground"
+              className="fill-foreground"
             />
             <YAxis
               yAxisId="left"
@@ -133,7 +133,7 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
               tickLine={false}
               axisLine={false}
               tickFormatter={(v: number) => '$' + v.toLocaleString()}
-              className="fill-muted-foreground"
+              className="fill-foreground"
             />
             <YAxis
               yAxisId="right"
@@ -142,7 +142,7 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
               tickLine={false}
               axisLine={false}
               tickFormatter={(v: number) => '$' + (v / 1000).toFixed(0) + 'k'}
-              className="fill-muted-foreground"
+              className="fill-foreground"
             />
             <Tooltip content={<CustomTooltip />} />
             <Bar
@@ -161,7 +161,7 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
                 dataKey="onboarding"
                 name={`Onboarding (${currency})`}
                 fill={sageFill}
-                stroke={sageColor}
+                stroke={mossColor}
                 strokeWidth={1}
                 radius={[2, 2, 0, 0]}
               />
