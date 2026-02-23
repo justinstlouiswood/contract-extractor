@@ -89,7 +89,7 @@ export function AppSidebar({
         collapsible="none"
         className="w-[calc(var(--sidebar-width-icon)+1px)]! border-r"
       >
-        <SidebarHeader>
+        <SidebarHeader className="border-b-0">
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton

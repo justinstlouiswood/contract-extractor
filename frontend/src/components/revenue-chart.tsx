@@ -116,9 +116,9 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
           <span className="text-xs text-muted-foreground">Cumulative TCV</span>
         </div>
       </div>
-      <div className="h-48">
+      <div className="h-56" style={{ overflow: 'visible', outline: 'none', boxShadow: 'none' }}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 24, right: 8, left: 8, bottom: 2 }}>
+          <ComposedChart data={data} margin={{ top: 40, right: 30, left: 8, bottom: 2 }} style={{ outline: 'none' }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
             <XAxis
               dataKey="name"
@@ -154,6 +154,8 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
               strokeWidth={1}
               radius={[2, 2, 0, 0]}
               label={<EscalationLabel data={data} />}
+              style={{ outline: 'none' }}
+              cursor="default"
             />
             {hasOnboarding && (
               <Bar
@@ -164,6 +166,8 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
                 stroke={mossColor}
                 strokeWidth={1}
                 radius={[2, 2, 0, 0]}
+                style={{ outline: 'none' }}
+                cursor="default"
               />
             )}
             <Line
@@ -175,6 +179,7 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
               strokeWidth={2}
               strokeDasharray="6 4"
               dot={{ r: 3, fill: cumulativeColor, strokeWidth: 0 }}
+              activeDot={{ r: 4, fill: cumulativeColor, strokeWidth: 0 }}
             />
           </ComposedChart>
         </ResponsiveContainer>
