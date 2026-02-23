@@ -36,6 +36,7 @@ export default function App() {
   ])
   const [gmailAuth, setGmailAuth] = useState<GmailAuth>({ authenticated: false, email: null })
   const [pdfId, setPdfId] = useState<string | null>(null)
+  const [pdfExpired, setPdfExpired] = useState(false)
   const [scrollToPage, setScrollToPage] = useState<number | null>(null)
 
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -95,6 +96,7 @@ export default function App() {
     setView('processing')
     setCurrentContract(null)
     setPdfId(null)
+    setPdfExpired(false)
     setScrollToPage(null)
     setSelectedContractId(null)
     setSteps(s => s.map(step => ({ ...step, status: 'pending' as const, message: '' })))
@@ -159,6 +161,7 @@ export default function App() {
   const handleStop = () => {
     if (abortControllerRef.current) abortControllerRef.current.abort()
     setPdfId(null)
+    setPdfExpired(false)
     setScrollToPage(null)
     setFile(null)
     setView('empty')
@@ -175,6 +178,7 @@ export default function App() {
       pdf_id: contractPdfId,
     })
     setPdfId(contractPdfId)
+    setPdfExpired(false)
     setSelectedContractId(contract.id)
     setView('detail')
   }
@@ -182,13 +186,14 @@ export default function App() {
   const handleDeselectContract = () => {
     setCurrentContract(null)
     setPdfId(null)
+    setPdfExpired(false)
     setScrollToPage(null)
     setSelectedContractId(null)
     setView('empty')
   }
 
   const handlePdfUnavailable = useCallback(() => {
-    setPdfId(null)
+    setPdfExpired(true)
     setScrollToPage(null)
   }, [])
 
@@ -197,7 +202,7 @@ export default function App() {
     setTimeout(() => setScrollToPage(page), 50)
   }
 
-  const showPdf = view === 'detail' && pdfId
+  const showPdf = view === 'detail' && (pdfId || pdfExpired)
 
   return (
     <SidebarProvider>

@@ -180,25 +180,35 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage, onPdfUnavailab
     }
   }, [targetPage])
 
-  if (!pdfId) return null
-
   return (
     <div className="flex h-full flex-col bg-surface-secondary p-3 pl-1.5">
       <div className="flex flex-1 flex-col overflow-hidden rounded-sm border border-border bg-card shadow-card">
         <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
           <span className="text-sm font-semibold text-muted-foreground">Source Document</span>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setScale(s => Math.max(0.5, s - 0.25))}>
-              <ZoomOut className="h-3.5 w-3.5" />
-            </Button>
-            <span className="text-xs text-muted-foreground">{Math.round(scale * 100)}%</span>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setScale(s => Math.min(2.5, s + 0.25))}>
-              <ZoomIn className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          {pdfId && (
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setScale(s => Math.max(0.5, s - 0.25))}>
+                <ZoomOut className="h-3.5 w-3.5" />
+              </Button>
+              <span className="text-xs text-muted-foreground">{Math.round(scale * 100)}%</span>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setScale(s => Math.min(2.5, s + 0.25))}>
+                <ZoomIn className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-auto" ref={containerRef}>
+          {!pdfId && (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+              <FileX className="h-8 w-8 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">Source document expired</span>
+              <span className="text-sm text-muted-foreground">
+                The PDF file is no longer available on the server.
+                Re-upload the document to view it alongside the extracted data.
+              </span>
+            </div>
+          )}
           {(pdfStatus === 'checking' || pdfStatus === 'loading') && (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
