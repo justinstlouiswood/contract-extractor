@@ -13,7 +13,7 @@ Internal tool for Customer Success, Finance, and Legal teams to extract, review,
 - **Excel Export**: SheetJS (`xlsx`, bundled via Vite)
 - **Charts**: Recharts (ComposedChart with Bar + Line)
 - **Icons**: lucide-react
-- **Deployment**: Railway with nixpacks (Node.js build + Python runtime)
+- **Deployment**: Railway with Railpack (auto-detected Python build, pre-built frontend)
 
 ---
 
@@ -257,7 +257,8 @@ Right panel: PDF viewer in a `rounded-xl border border-border bg-card` container
 | `templates/index.html` | Flask template, loads Vite build output |
 | `static/dist/` | Vite build output (committed — must rebuild before committing frontend changes) |
 | `.env` | API keys (never commit) |
-| `nixpacks.toml` | Railway build config (Node.js + Python) |
+| `.python-version` | Pins Python 3.12 for Railpack builds on Railway |
+| `railway.json` | Railpack deploy config (gunicorn start command) |
 | `agent.md` | Extraction agent behavior specification |
 
 ---
@@ -340,7 +341,10 @@ python3 app.py                    # Serves everything at http://localhost:5001
 ## Deployment
 
 - **Platform**: Railway (auto-deploys from git push)
-- **Build**: nixpacks runs `cd frontend && npm install && npm run build` then `pip install`
+- **Builder**: Railpack (replaced Nixpacks — `nixpacks.toml` is ignored)
+- **Python version**: Pinned to 3.12 via `.python-version` (Railpack reads this file)
+- **Build**: Railpack auto-detects `requirements.txt` and runs `pip install`. Frontend is pre-built and committed to `static/dist/` (no Node.js build step on Railway)
+- **Deploy**: `railway.json` specifies start command: `gunicorn --worker-class gevent --workers 1 --timeout 180`
 - **Required Railway variables**: `ANTHROPIC_API_KEY`
 - Push to `origin` remote (only remote currently configured)
 
@@ -489,6 +493,44 @@ Phase 3 — Apply shadows and surface tokens:
 - `onPdfUnavailable` callback creates a feedback loop: viewer tells parent, parent clears state, layout degrades gracefully
 - Required `pdf_id` type means TypeScript catches any future code path that forgets to set it
 - AbortController prevents state updates on unmounted components during navigation
+
+### Feb 23, 2026 — Resizable Sidebar
+
+**Feature:** Draggable sidebar resize handle with localStorage persistence.
+
+**Changes:**
+- Created `frontend/src/hooks/use-sidebar-resize.ts` — custom hook for drag-to-resize (default 288px, min 200px, max 480px, persists to `localStorage` key `sidebarWidth`)
+- Modified `frontend/src/components/ui/sidebar.tsx` — integrated dynamic width via `--sidebar-width` CSS variable, added `SidebarResizeHandle` component with `col-resize` cursor, removed width transition for smooth drag
+
+### Feb 23, 2026 — Extraction Pipeline 50% Stall Fix
+
+**Problem:** New PDF uploads stall at exactly 50% progress and never complete. Previously-processed documents work fine (SHA-256 cache returns instantly).
+
+**Root cause:** Gunicorn's default `sync` worker buffers entire SSE generator output. The frontend reads from a `ReadableStream` that never receives data while gunicorn holds all SSE events in memory.
+
+**Fix:**
+- Switched gunicorn to `gevent` worker class for real-time SSE streaming (`Procfile`, `railway.json`)
+- Added `httpx.Timeout(120.0, connect=10.0)` to Anthropic client (down from 600s default)
+- Wrapped Flask generator with `stream_with_context()`
+- Added structured error handling: catches `anthropic.APIStatusError`, `APIConnectionError`, `httpx.TimeoutException` separately
+- Added non-streaming fallback if streaming produces no output
+- Replaced all `print()` with structured `logging` in `app.py` and `pdf_processor.py`
+- Added OCR page limit (20 pages) to prevent OOM on large scanned docs
+- Added 90s client-side inactivity timeout via `Promise.race` in SSE reader loop
+- Added `'error'` status to `ProcessingStep` with red indicator UI
+
+### Feb 23, 2026 — Railway Build Failure (Nixpacks vs Railpack)
+
+**Problem:** Railway builds failed repeatedly with gevent compilation error on Python 3.13. Multiple fix attempts (bumping gevent version, recreating `nixpacks.toml`) had no effect.
+
+**Root cause:** Railway migrated from Nixpacks to Railpack (commit `c5bc670`). That commit explicitly deleted `nixpacks.toml` because Railpack ignores it. Subsequent fix attempts recreated `nixpacks.toml` — which was silently ignored. The `railway.json` only had a `deploy.startCommand` (no build config), and no Python version was pinned anywhere Railpack could read it. Railpack defaulted to Python 3.13.2, which cannot compile gevent's C extensions.
+
+**Fix:**
+- Created `.python-version` with `3.12` (Railpack's second-priority version detection mechanism)
+- Deleted `nixpacks.toml` (misleading, ignored by Railpack)
+- Updated `CLAUDE.md` to document Railpack as the builder and `.python-version` as the version pin
+
+**Key lesson:** Always verify which build system is active before adding configuration files. `nixpacks.toml` and `railway.json` serve different builders.
 
 ---
 
