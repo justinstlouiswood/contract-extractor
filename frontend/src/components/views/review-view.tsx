@@ -1,8 +1,5 @@
 import { useState, useMemo } from 'react'
 import { SummaryCard } from '@/components/summary-card'
-import { ContractTimeline } from '@/components/contract-timeline'
-import { VerificationProgress } from '@/components/verification-progress'
-import { ConfidenceHeatmap } from '@/components/confidence-heatmap'
 import { ExpandableSection } from '@/components/expandable-section'
 import { ReviewFieldTable } from '@/components/review-field-table'
 import { RevenueChart } from '@/components/revenue-chart'
@@ -102,7 +99,7 @@ export function ReviewView({ data, gmailAuth, onGmailAuthClick, onSendEmail, onS
   }
 
   return (
-    <div className="space-y-4 p-5">
+    <div className="space-y-2.5 p-3">
       <SummaryCard
         parsed_data={parsed_data}
         confidence={parsed_data.confidence}
@@ -111,22 +108,13 @@ export function ReviewView({ data, gmailAuth, onGmailAuthClick, onSendEmail, onS
         totalCategories={availableCategories.length}
         activeAction={distributionAction}
         onAction={handleDistributionAction}
+        onMarkAll={markAllVerified}
         editedFields={editedFields}
         extractedInfo={data.extracted_info}
         gmailAuth={gmailAuth}
         onGmailAuthClick={onGmailAuthClick}
         onSendEmail={onSendEmail}
       />
-
-      <ContractTimeline parsed_data={parsed_data} />
-
-      <VerificationProgress
-        verified={verifiedCategories.size}
-        total={availableCategories.length}
-        onMarkAll={markAllVerified}
-      />
-
-      <ConfidenceHeatmap parsed_data={parsed_data} />
 
       {contractFields.length > 0 && (
         <ExpandableSection

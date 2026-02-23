@@ -1,7 +1,10 @@
-import { Copy, Mail, Lock, Table2 } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Copy, Mail, Lock, Table2, ChevronRight } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { formatCurrency } from '@/lib/contract-utils'
+import { Progress } from '@/components/ui/progress'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { formatCurrency, getHeatmapColor, getConfidenceFieldLabel } from '@/lib/contract-utils'
 import { EmailSection } from '@/components/distribution/email-section'
 import { SlackPanel } from '@/components/distribution/slack-panel'
 import { SheetsPanel } from '@/components/distribution/sheets-panel'
@@ -23,6 +26,11 @@ function SlackIcon({ className }: { className?: string }) {
   )
 }
 
+interface TierGroup {
+  label: string
+  entries: [string, number][]
+}
+
 interface SummaryCardProps {
   parsed_data: ParsedData
   confidence?: Record<string, number>
@@ -31,6 +39,7 @@ interface SummaryCardProps {
   totalCategories: number
   activeAction: DistributionAction
   onAction: (action: DistributionAction) => void
+  onMarkAll: () => void
   editedFields: Record<string, string>
   extractedInfo: string
   gmailAuth: GmailAuth
@@ -40,84 +49,158 @@ interface SummaryCardProps {
 
 export function SummaryCard({
   parsed_data, confidence,
-  isUnlocked, verifiedCount, totalCategories, activeAction, onAction,
+  isUnlocked, verifiedCount, totalCategories, activeAction, onAction, onMarkAll,
   editedFields, extractedInfo,
   gmailAuth, onGmailAuthClick, onSendEmail,
 }: SummaryCardProps) {
+  const [confidenceOpen, setConfidenceOpen] = useState(false)
+
   const currency = parsed_data.currency || 'CAD'
   const tcvNeedsReview = confidence?.total_contract_value !== undefined && confidence.total_contract_value < 85
+  const verifyPct = totalCategories > 0 ? (verifiedCount / totalCategories) * 100 : 0
+
+  // Build date range string
+  const dateRange = [parsed_data.subscription_start, parsed_data.subscription_end]
+    .filter(Boolean)
+    .join(' \u2013 ')
+
+  // Compute confidence tiers
+  const { tiers, avg } = useMemo(() => {
+    if (!confidence || Object.keys(confidence).length === 0) return { tiers: [] as TierGroup[], avg: 0 }
+
+    const entries = Object.entries(confidence)
+      .filter(([, score]) => typeof score === 'number' && score > 0)
+      .sort((a, b) => b[1] - a[1])
+
+    if (entries.length === 0) return { tiers: [] as TierGroup[], avg: 0 }
+
+    const avgScore = Math.round(entries.reduce((sum, [, s]) => sum + s, 0) / entries.length)
+
+    const high = entries.filter(([, s]) => s >= 85)
+    const review = entries.filter(([, s]) => s < 85)
+
+    const groups: TierGroup[] = []
+    if (high.length > 0) groups.push({ label: 'High Confidence', entries: high })
+    if (review.length > 0) groups.push({ label: 'Needs Review', entries: review })
+
+    return { tiers: groups, avg: avgScore }
+  }, [confidence])
 
   return (
     <Card>
-      <CardContent className="p-5">
-        {/* Contract summary */}
-        <div className="flex items-baseline gap-3">
-          <span className="text-3xl font-semibold tabular-nums tracking-tighter">
+      <CardContent className="p-3">
+        {/* Row 1: Company, value, badge, dates */}
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-medium">{parsed_data.customer_name || 'Unknown Customer'}</span>
+          <span className="shrink-0 text-sm font-semibold tabular-nums">
             {parsed_data.total_contract_value && parsed_data.total_contract_value > 0
               ? formatCurrency(parsed_data.total_contract_value)
               : '\u2014'}
           </span>
           {parsed_data.total_contract_value && parsed_data.total_contract_value > 0 && (
-            <span className="text-xs font-normal text-muted-alt">{currency}</span>
+            <span className="text-xs text-muted-alt">{currency}</span>
           )}
           {tcvNeedsReview && (
-            <span className="ml-1 rounded-md border border-review-border bg-review-bg px-1.5 py-0.5 text-xs font-medium text-review-text">
+            <span className="rounded-md border border-review-border bg-review-bg px-1.5 py-0.5 text-xs font-medium text-review-text">
               Review
             </span>
           )}
-        </div>
-        <div className="mt-1.5 text-base font-medium">{parsed_data.customer_name || 'Unknown Customer'}</div>
-        <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-          {parsed_data.duration && <span>{parsed_data.duration}</span>}
-          {parsed_data.duration && parsed_data.subscription_start && <span>/</span>}
-          {parsed_data.subscription_start && (
-            <span>{parsed_data.subscription_start} - {parsed_data.subscription_end || '?'}</span>
-          )}
+          <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+            {dateRange}
+            {parsed_data.duration && dateRange && ` \u00B7 ${parsed_data.duration}`}
+            {parsed_data.duration && !dateRange && parsed_data.duration}
+          </span>
         </div>
 
-        {/* Distribution actions */}
-        <div className="mt-4 border-t border-border pt-4">
+        {/* Row 2: Verification progress + lock/unlock */}
+        <div className="mt-2 flex items-center gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <Progress value={verifyPct} className="h-1.5 flex-1" />
+            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+              {verifiedCount} / {totalCategories} verified
+            </span>
+          </div>
           {isUnlocked ? (
-            <div className="flex items-center gap-3">
-              <Button variant="outline" className="h-10 gap-2.5 px-4 text-sm font-medium" onClick={() => onAction('copy' as DistributionAction)}>
-                <Copy className="h-4 w-4" /> Copy
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={() => onAction('copy' as DistributionAction)}>
+                <Copy className="h-3 w-3" /> Copy
               </Button>
               <Button
                 variant={activeAction === 'email' ? 'default' : 'outline'}
-                className="h-10 gap-2.5 px-4 text-sm font-medium"
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-xs"
                 onClick={() => onAction(activeAction === 'email' ? null : 'email')}
               >
-                <Mail className="h-4 w-4" /> Email
+                <Mail className="h-3 w-3" /> Email
               </Button>
               <Button
                 variant={activeAction === 'slack' ? 'default' : 'outline'}
-                className="h-10 gap-2.5 px-4 text-sm font-medium"
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-xs"
                 onClick={() => onAction(activeAction === 'slack' ? null : 'slack')}
               >
-                <SlackIcon className="h-4 w-4" /> Slack
+                <SlackIcon className="h-3 w-3" /> Slack
               </Button>
               <Button
                 variant={activeAction === 'sheets' ? 'default' : 'outline'}
-                className="h-10 gap-2.5 px-4 text-sm font-medium"
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-xs"
                 onClick={() => onAction(activeAction === 'sheets' ? null : 'sheets')}
               >
-                <Table2 className="h-4 w-4" /> Sheet
+                <Table2 className="h-3 w-3" /> Sheet
               </Button>
             </div>
           ) : (
             <button
-              className="flex w-full items-center justify-center gap-2 rounded-md border border-border py-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              disabled
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              onClick={onMarkAll}
             >
-              <Lock className="h-3.5 w-3.5" />
-              Verify {totalCategories - verifiedCount} of {totalCategories} categories to unlock
+              <Lock className="h-3 w-3" />
+              Verify {totalCategories - verifiedCount} of {totalCategories} to unlock
             </button>
           )}
         </div>
 
-        {/* Conditional sub-panels */}
+        {/* Accordion: Extraction Confidence */}
+        {tiers.length > 0 && (
+          <Collapsible open={confidenceOpen} onOpenChange={setConfidenceOpen}>
+            <div className="mt-2 border-t border-border pt-2">
+              <CollapsibleTrigger className="flex w-full items-center gap-1.5 text-left text-xs hover:text-foreground/80">
+                <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${confidenceOpen ? 'rotate-90' : ''}`} />
+                <span className="font-semibold text-foreground">Extraction Confidence</span>
+                <span className="text-muted-foreground">{'\u00B7'} avg {avg}%</span>
+              </CollapsibleTrigger>
+            </div>
+            <CollapsibleContent>
+              <div className="mt-1.5 space-y-2">
+                {tiers.map((tier, tierIdx) => (
+                  <div key={tier.label} className={tierIdx > 0 ? 'border-t border-border pt-2' : ''}>
+                    <div className="mb-1 text-xs font-medium text-foreground">
+                      {tier.label}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {tier.entries.map(([key, score]) => (
+                        <div
+                          key={key}
+                          className="flex items-center gap-1 rounded-sm px-2 py-1"
+                          style={{ backgroundColor: getHeatmapColor(score) }}
+                          title={`${getConfidenceFieldLabel(key)}: ${score}%`}
+                        >
+                          <span className="text-xs text-muted-foreground">{getConfidenceFieldLabel(key)}</span>
+                          <span className="text-xs tabular-nums text-foreground">{score}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        {/* Conditional distribution sub-panels */}
         {activeAction === 'email' && isUnlocked && (
-          <div className="mt-3">
+          <div className="mt-3 border-t border-border pt-3">
             <EmailSection
               contractData={parsed_data}
               extractedInfo={extractedInfo}
@@ -129,12 +212,12 @@ export function SummaryCard({
           </div>
         )}
         {activeAction === 'slack' && isUnlocked && (
-          <div className="mt-3">
+          <div className="mt-3 border-t border-border pt-3">
             <SlackPanel parsed_data={parsed_data} onClose={() => onAction(null)} />
           </div>
         )}
         {activeAction === 'sheets' && isUnlocked && (
-          <div className="mt-3">
+          <div className="mt-3 border-t border-border pt-3">
             <SheetsPanel parsed_data={parsed_data} editedFields={editedFields} gmailAuth={gmailAuth} onAuthClick={onGmailAuthClick} onClose={() => onAction(null)} />
           </div>
         )}

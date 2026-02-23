@@ -36,34 +36,34 @@ export function ContractTimeline({ parsed_data }: ContractTimelineProps) {
   const { start, end, todayPct, isActive, sigPct } = timeline
 
   return (
-    <div className="rounded-sm border border-border bg-card p-4 shadow-card">
-      <div className="mb-6 flex items-center justify-between">
-        <span className="text-sm font-semibold text-muted-foreground">Contract Timeline</span>
+    <div className="rounded-sm border border-border bg-card p-2.5 shadow-card">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground">Contract Timeline</span>
         <div className="flex items-center gap-2">
           {!isActive && new Date() > end && (
             <span className="rounded-md border border-review-border bg-review-bg px-2 py-0.5 text-xs font-medium text-review-text">
               Expired
             </span>
           )}
-          <span className="text-sm text-muted-foreground">{parsed_data.duration || ''}</span>
+          <span className="text-xs text-muted-foreground">{parsed_data.duration || ''}</span>
         </div>
       </div>
 
       {/* Timeline track */}
-      <div className="relative h-6">
-        <div className="absolute inset-x-0 top-2.5 h-1.5 rounded bg-secondary" />
-        <div className="absolute inset-x-0 top-2.5 h-1.5 rounded bg-moss/30" />
+      <div className="relative h-5">
+        <div className="absolute inset-x-0 top-2 h-1 rounded bg-secondary" />
+        <div className="absolute inset-x-0 top-2 h-1 rounded bg-moss/30" />
 
         {isActive && (
           <div
-            className="absolute top-2.5 left-0 h-1.5 rounded bg-moss/60"
+            className="absolute top-2 left-0 h-1 rounded bg-moss/60"
             style={{ width: `${todayPct}%` }}
           />
         )}
 
         {sigPct !== null && (
           <div
-            className="absolute top-0 h-6 w-px bg-sage/60"
+            className="absolute top-0 h-5 w-px bg-sage/60"
             style={{ left: `${sigPct}%` }}
           >
             <div className="absolute -top-4 -translate-x-1/2 whitespace-nowrap text-xs text-sage">
@@ -74,10 +74,10 @@ export function ContractTimeline({ parsed_data }: ContractTimelineProps) {
 
         {isActive && (
           <div
-            className="absolute top-0 h-6 w-0.5 rounded bg-foreground"
+            className="absolute top-0 h-5 w-0.5 rounded bg-foreground"
             style={{ left: `${todayPct}%` }}
           >
-            <div className="absolute top-7 -translate-x-1/2 whitespace-nowrap text-xs font-medium text-foreground">
+            <div className="absolute top-6 -translate-x-1/2 whitespace-nowrap text-xs font-medium text-foreground">
               Today
             </div>
           </div>

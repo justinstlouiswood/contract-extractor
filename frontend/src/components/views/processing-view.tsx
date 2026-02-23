@@ -1,10 +1,12 @@
-import { FileText, Check } from 'lucide-react'
+import { FileText, Check, Square } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import type { ProcessingStep } from '@/types/contract'
 
 interface ProcessingViewProps {
   filename: string
   steps: ProcessingStep[]
+  onStop?: () => void
 }
 
 const stepDescriptions: Record<string, string> = {
@@ -43,7 +45,7 @@ function ProgressStep({ number, label, status, message }: { number: number; labe
   )
 }
 
-export function ProcessingView({ filename, steps }: ProcessingViewProps) {
+export function ProcessingView({ filename, steps, onStop }: ProcessingViewProps) {
   const completedSteps = steps.filter(s => s.status === 'complete').length
   const progress = (completedSteps / steps.length) * 100
 
@@ -71,6 +73,20 @@ export function ProcessingView({ filename, steps }: ProcessingViewProps) {
           </div>
           <Progress value={progress} className="h-1.5" />
         </div>
+
+        {onStop && (
+          <div className="mt-4 flex justify-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onStop}
+              className="gap-1.5 text-xs text-danger-text hover:text-danger-text"
+            >
+              <Square className="h-3 w-3" />
+              Cancel
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )

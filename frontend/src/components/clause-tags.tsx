@@ -14,7 +14,7 @@ export function ClauseTags({ clauses }: ClauseTagsProps) {
   return (
     <div className="mt-3 space-y-2 px-1">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-muted-foreground">Key Clauses</span>
+        <span className="text-xs font-semibold text-muted-foreground">Key Clauses</span>
         <span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
           {presentCount} of {entries.length} detected
         </span>
@@ -24,7 +24,7 @@ export function ClauseTags({ clauses }: ClauseTagsProps) {
           <div
             key={key}
             title={info.description || undefined}
-            className={`rounded-sm border px-2.5 py-1.5 text-xs transition-colors ${
+            className={`rounded-sm border px-2 py-1 text-xs transition-colors ${
               info.present
                 ? 'border-moss/30 bg-moss/15 text-moss'
                 : 'border-border bg-transparent text-muted-foreground/70'

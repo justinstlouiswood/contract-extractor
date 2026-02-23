@@ -57,7 +57,7 @@ function EscalationLabel(props: any) {
         y={y - 14}
         textAnchor="middle"
         className="fill-foreground"
-        style={{ fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif" }}
+        style={{ fontSize: 10, fontWeight: 600, fontFamily: "'Inter', sans-serif" }}
       >
         {pct > 0 ? '+' : ''}{pct.toFixed(1)}%
       </text>
@@ -102,34 +102,34 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
     <div className="mt-3 space-y-2 px-1">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-1.5">
-          <div className="h-4 w-4 rounded-sm bg-moss" />
-          <span className="text-sm text-muted-foreground">Annual Fee</span>
+          <div className="h-3 w-3 rounded-sm bg-moss" />
+          <span className="text-xs text-muted-foreground">Annual Fee</span>
         </div>
         {hasOnboarding && (
           <div className="flex items-center gap-1.5">
-            <div className="h-4 w-4 rounded-sm bg-sage" />
-            <span className="text-sm text-muted-foreground">Onboarding</span>
+            <div className="h-3 w-3 rounded-sm bg-sage" />
+            <span className="text-xs text-muted-foreground">Onboarding</span>
           </div>
         )}
         <div className="flex items-center gap-1.5">
           <div className="h-px w-4 border-t border-dashed" style={{ borderColor: '#5EAFC0' }} />
-          <span className="text-sm text-muted-foreground">Cumulative TCV</span>
+          <span className="text-xs text-muted-foreground">Cumulative TCV</span>
         </div>
       </div>
-      <div className="h-64">
+      <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 28, right: 12, left: 4, bottom: 4 }}>
+          <ComposedChart data={data} margin={{ top: 24, right: 8, left: 0, bottom: 2 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
             <XAxis
               dataKey="name"
-              tick={{ fontSize: 13 }}
+              tick={{ fontSize: 11 }}
               tickLine={false}
               axisLine={false}
               className="fill-foreground"
             />
             <YAxis
               yAxisId="left"
-              tick={{ fontSize: 13 }}
+              tick={{ fontSize: 11 }}
               tickLine={false}
               axisLine={false}
               tickFormatter={(v: number) => '$' + v.toLocaleString()}
@@ -138,7 +138,7 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
             <YAxis
               yAxisId="right"
               orientation="right"
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 10 }}
               tickLine={false}
               axisLine={false}
               tickFormatter={(v: number) => '$' + (v / 1000).toFixed(0) + 'k'}

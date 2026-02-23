@@ -17,15 +17,15 @@ interface ExpandableSectionProps {
 export function ExpandableSection({ title, fieldCount, isExpanded, onToggle, children, isVerified, onVerify }: ExpandableSectionProps) {
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
-      <div className="flex items-center gap-2.5 rounded-sm border border-border bg-card px-4 py-3 shadow-card">
+      <div className="flex items-center gap-2 rounded-sm border border-border bg-card px-3 py-2 shadow-card">
         {onVerify !== undefined && (
           <Checkbox
             checked={isVerified}
             onCheckedChange={() => onVerify()}
           />
         )}
-        <CollapsibleTrigger className="flex flex-1 items-center gap-2.5 text-left text-sm font-semibold hover:text-foreground/80">
-          <ChevronRight className={`h-4 w-4 shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+        <CollapsibleTrigger className="flex flex-1 items-center gap-2 text-left text-xs font-semibold hover:text-foreground/80">
+          <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
           <span className="flex-1">{title}</span>
           {fieldCount !== undefined && (
             <Badge variant="secondary" className="text-xs">{fieldCount}</Badge>
@@ -33,7 +33,7 @@ export function ExpandableSection({ title, fieldCount, isExpanded, onToggle, chi
         </CollapsibleTrigger>
       </div>
       <CollapsibleContent>
-        <div className="rounded-b-sm border-x border-b border-border bg-surface-tint px-2 pb-2">
+        <div className="rounded-b-sm border-x border-b border-border bg-surface-tint px-1.5 pb-1.5">
           {children}
         </div>
       </CollapsibleContent>

@@ -66,10 +66,10 @@ export function ReviewFieldTable({
     <Table>
       <TableHeader>
         <TableRow className="hover:bg-transparent">
-          <TableHead className="h-8 w-[30%] px-2 text-sm font-medium text-muted-foreground">Field</TableHead>
-          <TableHead className="h-8 px-2 text-sm font-medium text-muted-foreground">Value</TableHead>
-          <TableHead className="h-8 w-[48px] px-1 text-sm font-medium text-muted-foreground">Page</TableHead>
-          <TableHead className="h-8 w-8 px-1"></TableHead>
+          <TableHead className="h-7 w-[30%] px-2 text-xs font-medium text-muted-foreground">Field</TableHead>
+          <TableHead className="h-7 px-2 text-xs font-medium text-muted-foreground">Value</TableHead>
+          <TableHead className="h-7 w-[48px] px-1 text-xs font-medium text-muted-foreground">Page</TableHead>
+          <TableHead className="h-7 w-8 px-1"></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -91,7 +91,7 @@ export function ReviewFieldTable({
               className={`cursor-pointer ${isActive ? 'bg-accent' : ''}`}
               onClick={() => onActivate(field.key)}
             >
-              <TableCell className="px-2 py-2 text-sm text-muted-foreground">
+              <TableCell className="px-2 py-1 text-xs text-muted-foreground">
                 {field.label}
                 {needsReview && (
                   <span className="ml-1.5 rounded-md border border-review-border bg-review-bg px-1 py-0.5 text-xs font-medium text-review-text">
@@ -99,31 +99,31 @@ export function ReviewFieldTable({
                   </span>
                 )}
               </TableCell>
-              <TableCell className="px-2 py-2">
+              <TableCell className="px-2 py-1">
                 {isEditing ? (
                   <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                     <Input
                       value={editValue}
                       onChange={e => onEditChange(e.target.value)}
-                      className="h-8 text-sm"
+                      className="h-7 text-xs"
                       autoFocus
                       onKeyDown={e => { if (e.key === 'Enter') onSaveEdit(field.key); if (e.key === 'Escape') onCancelEdit() }}
                     />
-                    <Button variant="ghost" size="sm" className="h-8 px-2.5 text-sm" onClick={() => onSaveEdit(field.key)}>Save</Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-2.5 text-sm text-muted-foreground" onClick={onCancelEdit}>Cancel</Button>
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => onSaveEdit(field.key)}>Save</Button>
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={onCancelEdit}>Cancel</Button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-1.5">
                     {field.isLink ? (
                       <a
                         href={`mailto:${displayValue}`}
-                        className="text-sm underline underline-offset-2"
+                        className="text-xs underline underline-offset-2"
                         onClick={e => e.stopPropagation()}
                       >
                         {displayValue}
                       </a>
                     ) : (
-                      <span className="text-sm">{displayValue || '\u2014'}</span>
+                      <span className="text-xs">{displayValue || '\u2014'}</span>
                     )}
                     {editedFields[field.key] !== undefined && (
                       <span className="rounded-md bg-muted px-1 py-0.5 text-xs font-medium text-muted-foreground">
@@ -133,21 +133,21 @@ export function ReviewFieldTable({
                   </div>
                 )}
               </TableCell>
-              <TableCell className="px-1 py-2">
+              <TableCell className="px-1 py-1">
                 <PageRefPill pages={pageRefs} onClick={onScrollToPage} />
               </TableCell>
-              <TableCell className="px-1 py-2" onClick={e => e.stopPropagation()}>
+              <TableCell className="px-1 py-1" onClick={e => e.stopPropagation()}>
                 {!isEditing && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
                     onClick={() => {
                       const dv = editedFields[field.key] !== undefined ? editedFields[field.key] : field.value
                       onStartEdit(field.key, dv)
                     }}
                   >
-                    <Pencil className="h-3.5 w-3.5" />
+                    <Pencil className="h-3 w-3" />
                   </Button>
                 )}
               </TableCell>

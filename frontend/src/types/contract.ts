@@ -81,7 +81,7 @@ export interface ProcessingStep {
   message: string
 }
 
-export type AppView = 'home' | 'processing' | 'detail'
+export type AppView = 'empty' | 'processing' | 'detail'
 
 export type DistributionAction = 'email' | 'slack' | 'sheets' | null
 

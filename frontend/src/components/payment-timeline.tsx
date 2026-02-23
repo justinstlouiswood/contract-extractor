@@ -49,7 +49,7 @@ export function PaymentTimeline({ parsed_data }: PaymentTimelineProps) {
 
   return (
     <div className="mt-3 space-y-2 px-1">
-      <div className="text-sm font-semibold text-muted-foreground">Payment Schedule</div>
+      <div className="text-xs font-semibold text-muted-foreground">Payment Schedule</div>
 
       <div className="relative">
         {/* Baseline rule — vertically centered on the dot row */}
@@ -61,7 +61,7 @@ export function PaymentTimeline({ parsed_data }: PaymentTimelineProps) {
               <div key={i} className="flex flex-col items-center">
                 {/* Dot — centered on the baseline */}
                 <div
-                  className={`h-[10px] w-[10px] rounded-full ${
+                  className={`h-2 w-2 rounded-full ${
                     evt.type === 'onboarding'
                       ? 'border-2 border-moss bg-transparent'
                       : 'bg-moss'

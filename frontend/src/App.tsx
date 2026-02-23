@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { AlertCircle, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { FloatingDock } from '@/components/floating-dock'
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
+import { Separator } from '@/components/ui/separator'
+import { AppSidebar } from '@/components/app-sidebar'
+import { UploadDialog } from '@/components/upload-dialog'
+import { EmptyState } from '@/components/empty-state'
 import { CopyFeedback } from '@/components/copy-feedback'
-import { HomeView } from '@/components/views/home-view'
 import { ProcessingView } from '@/components/views/processing-view'
 import { ReviewView } from '@/components/views/review-view'
 import { PDFViewerPanel } from '@/components/views/pdf-viewer-panel'
@@ -14,15 +17,17 @@ import type { AppView, ContractResult, ContractRecord, GmailAuth, ProcessingStep
 
 export default function App() {
   useTheme()
-  const { contracts: recentContracts, save: saveContract, clear: clearContracts } = useRecentContracts()
+  const { contracts: recentContracts, save: saveContract } = useRecentContracts()
 
-  const [view, setView] = useState<AppView>('home')
+  const [view, setView] = useState<AppView>('empty')
   const [currentContract, setCurrentContract] = useState<ContractResult | null>(null)
+  const [selectedContractId, setSelectedContractId] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copyFeedback, setCopyFeedback] = useState({ show: false, message: '' })
   const [duplicateContract, setDuplicateContract] = useState<ContractRecord | null>(null)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [steps, setSteps] = useState<ProcessingStep[]>([
     { label: 'Validating file', status: 'pending', message: '' },
     { label: 'Extracting text from PDF', status: 'pending', message: '' },
@@ -91,6 +96,7 @@ export default function App() {
     setCurrentContract(null)
     setPdfId(null)
     setScrollToPage(null)
+    setSelectedContractId(null)
     setSteps(s => s.map(step => ({ ...step, status: 'pending' as const, message: '' })))
 
     const formData = new FormData()
@@ -126,19 +132,27 @@ export default function App() {
       updateStep(3, 'complete', 'Summary generated')
       await new Promise(r => setTimeout(r, 500))
 
-      saveContract(result)
+      const savedRecord = saveContract(result)
       setPdfId(result.pdf_id ?? null)
       setCurrentContract(result)
+      setSelectedContractId(savedRecord.id)
       setView('detail')
+      setFile(null)
     } catch (err) {
-      if ((err as Error).name === 'AbortError') { setView('home'); return }
+      if ((err as Error).name === 'AbortError') {
+        setView('empty')
+        setFile(null)
+        return
+      }
       setError((err as Error).message || 'An error occurred during processing')
-      setView('home')
+      setView('empty')
+      setFile(null)
     }
   }
 
   const handleFileSelect = async (selectedFile: File) => {
     if (selectedFile.type !== 'application/pdf') { setError('Please select a PDF file'); return }
+    setUploadDialogOpen(false)
     processFile(selectedFile)
   }
 
@@ -146,7 +160,9 @@ export default function App() {
     if (abortControllerRef.current) abortControllerRef.current.abort()
     setPdfId(null)
     setScrollToPage(null)
-    setView('home')
+    setFile(null)
+    setView('empty')
+    setSelectedContractId(null)
     setSteps(s => s.map(step => ({ ...step, status: 'pending' as const, message: '' })))
   }
 
@@ -159,14 +175,16 @@ export default function App() {
       pdf_id: contractPdfId,
     })
     setPdfId(contractPdfId)
+    setSelectedContractId(contract.id)
     setView('detail')
   }
 
-  const handleBack = () => {
+  const handleDeselectContract = () => {
     setCurrentContract(null)
     setPdfId(null)
     setScrollToPage(null)
-    setView('home')
+    setSelectedContractId(null)
+    setView('empty')
   }
 
   const handlePdfUnavailable = useCallback(() => {
@@ -179,73 +197,80 @@ export default function App() {
     setTimeout(() => setScrollToPage(page), 50)
   }
 
-  const showDock = view !== 'home'
-  const getStatus = (): 'processing' | 'complete' | null => {
-    if (view === 'processing') return 'processing'
-    if (view === 'detail') return 'complete'
-    return null
-  }
-
   const showPdf = view === 'detail' && pdfId
 
   return (
-    <div className="flex h-screen flex-col bg-background">
-      {showDock && (
-        <FloatingDock
-          status={getStatus()}
-          onBack={handleBack}
-          onStop={handleStop}
-          onConfirmComplete={handleBack}
-          onRejectComplete={() => {}}
-        />
-      )}
+    <SidebarProvider>
+      <AppSidebar
+        contracts={recentContracts}
+        selectedId={selectedContractId}
+        processingFileName={view === 'processing' ? (file?.name || null) : null}
+        onSelectContract={handleSelectContract}
+        onUploadClick={() => setUploadDialogOpen(true)}
+        onDeselectContract={handleDeselectContract}
+      />
+      <SidebarInset className="h-screen overflow-hidden">
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
+          <span className="text-sm font-medium">
+            {view === 'empty' && 'MSA Extraction Machine'}
+            {view === 'processing' && `Processing: ${file?.name || 'document.pdf'}`}
+            {view === 'detail' && currentContract && (currentContract.parsed_data.customer_name || 'Contract Review')}
+          </span>
+        </header>
 
-      <main className="flex flex-1 justify-center overflow-hidden bg-background">
-        <div className={`flex ${showPdf ? 'max-w-[2000px]' : 'max-w-[1200px]'} w-full`}>
-          <div className={`overflow-auto ${showPdf ? 'w-1/2 min-w-0' : 'w-full'}`}>
-            {error && (
-              <div className="mx-4 mt-3 flex items-center gap-2 rounded-sm border border-danger-ring bg-danger-bg px-3 py-2 text-xs text-danger-text">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                <span className="flex-1">{error}</span>
-                <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setError(null)}>
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
-
-            {view === 'home' && (
-              <HomeView
-                recentContracts={recentContracts}
-                onFileSelect={handleFileSelect}
-                onSelectContract={handleSelectContract}
-                onClearRecents={clearContracts}
-              />
-            )}
-
-            {view === 'processing' && (
-              <ProcessingView filename={file?.name || 'document.pdf'} steps={steps} />
-            )}
-
-            {view === 'detail' && currentContract && (
-              <ReviewView
-                data={currentContract}
-                pdfId={pdfId}
-                gmailAuth={gmailAuth}
-                onGmailAuthClick={handleGmailAuthClick}
-                onSendEmail={handleSendEmail}
-                onScrollToPage={handleScrollToPage}
-                onCopyFeedback={handleCopyFeedback}
-              />
-            )}
+        {error && (
+          <div className="mx-4 mt-3 flex items-center gap-2 rounded-sm border border-danger-ring bg-danger-bg px-3 py-2 text-xs text-danger-text">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1">{error}</span>
+            <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setError(null)}>
+              <X className="h-3 w-3" />
+            </Button>
           </div>
+        )}
 
-          {showPdf && (
-            <div className="w-1/2 min-w-0 shrink-0">
-              <PDFViewerPanel pdfId={pdfId} scrollToPage={scrollToPage} onPdfUnavailable={handlePdfUnavailable} />
+        <div className="flex flex-1 overflow-hidden">
+          {view === 'empty' && (
+            <div className="w-full">
+              <EmptyState onUpload={() => setUploadDialogOpen(true)} />
             </div>
           )}
+
+          {view === 'processing' && (
+            <div className="w-full">
+              <ProcessingView filename={file?.name || 'document.pdf'} steps={steps} onStop={handleStop} />
+            </div>
+          )}
+
+          {view === 'detail' && currentContract && (
+            <>
+              <div className={`overflow-auto ${showPdf ? 'w-1/2 min-w-0' : 'w-full'}`}>
+                <ReviewView
+                  data={currentContract}
+                  pdfId={pdfId}
+                  gmailAuth={gmailAuth}
+                  onGmailAuthClick={handleGmailAuthClick}
+                  onSendEmail={handleSendEmail}
+                  onScrollToPage={handleScrollToPage}
+                  onCopyFeedback={handleCopyFeedback}
+                />
+              </div>
+              {showPdf && (
+                <div className="w-1/2 min-w-0 shrink-0">
+                  <PDFViewerPanel pdfId={pdfId} scrollToPage={scrollToPage} onPdfUnavailable={handlePdfUnavailable} />
+                </div>
+              )}
+            </>
+          )}
         </div>
-      </main>
+      </SidebarInset>
+
+      <UploadDialog
+        open={uploadDialogOpen}
+        onOpenChange={setUploadDialogOpen}
+        onFileSelect={handleFileSelect}
+      />
 
       {duplicateContract && (
         <DuplicateModal
@@ -257,6 +282,6 @@ export default function App() {
       )}
 
       <CopyFeedback show={copyFeedback.show} message={copyFeedback.message} />
-    </div>
+    </SidebarProvider>
   )
 }
