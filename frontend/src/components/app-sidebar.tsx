@@ -189,33 +189,34 @@ export function AppSidebar({
                     key={contract.id}
                     className={`group relative flex w-full border-b last:border-b-0 ${
                       isSelected
-                        ? 'border-l-2 border-l-foreground bg-sidebar-accent text-sidebar-accent-foreground'
+                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                         : 'hover:bg-sidebar-accent/50'
                     }`}
                   >
                     <button
                       onClick={() => onSelectContract(contract)}
-                      className="flex w-full flex-col items-start gap-1.5 p-4 text-left text-sm transition-colors"
+                      className="flex w-full flex-col items-start gap-1 p-4 text-left text-sm transition-colors"
                     >
+                      {/* Line 1: Company name + badge */}
                       <div className="flex w-full items-center gap-2">
                         <span className="truncate font-medium">
                           {contract.customer_name || 'Unknown Customer'}
                         </span>
-                      </div>
-                      <div className="flex w-full items-center gap-2">
-                        <span className="text-xs tabular-nums text-muted-foreground">
-                          {formatCurrency(contract.total_value)} {contract.currency}
-                        </span>
                         <Badge
                           variant={status === 'needs_review' ? 'warning' : 'extracted'}
-                          className="ml-auto text-[10px]"
+                          className="ml-auto shrink-0 text-[10px]"
                         >
                           {status === 'needs_review' ? 'Needs Review' : 'Extracted'}
                         </Badge>
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {formatListDate(contract.date_processed)}
-                        </span>
                       </div>
+                      {/* Line 2: Dollar amount + currency */}
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        {formatCurrency(contract.total_value)} {contract.currency}
+                      </span>
+                      {/* Line 3: Timestamp */}
+                      <span className="text-[11px] text-muted-foreground/70">
+                        {formatListDate(contract.date_processed)}
+                      </span>
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); onRemoveContract(contract.id) }}

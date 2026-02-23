@@ -27,10 +27,10 @@ function SlackIcon({ className }: { className?: string }) {
   )
 }
 
-function getAvgColor(s: number): string {
-  if (s >= 85) return 'text-success-text'
-  if (s >= 70) return 'text-caution-text'
-  return 'text-danger-text'
+function getAvgBadgeVariant(s: number): 'extracted' | 'warning' | 'review' {
+  if (s >= 85) return 'extracted'
+  if (s >= 70) return 'warning'
+  return 'review'
 }
 
 interface TierGroup {
@@ -204,8 +204,7 @@ export function SummaryCard({
               <CollapsibleTrigger className="flex w-full items-center gap-1.5 text-left text-xs hover:text-foreground/80">
                 <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${confidenceOpen ? 'rotate-90' : ''}`} />
                 <span className="font-semibold text-foreground">Extraction Confidence</span>
-                <span className="mx-1 text-border">|</span>
-                <span className={`tabular-nums ${getAvgColor(avg)}`}>avg {avg}%</span>
+                <Badge variant={getAvgBadgeVariant(avg)} className="ml-1.5 text-xs tabular-nums">{avg}%</Badge>
               </CollapsibleTrigger>
             </div>
             <CollapsibleContent>
