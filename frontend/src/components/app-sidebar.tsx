@@ -116,7 +116,7 @@ export function AppSidebar({
                         setOpen(true)
                       }}
                       isActive={activeNav === item.key}
-                      className={`px-2.5 md:px-2 ${activeNav === item.key ? 'border-l-2 border-l-foreground' : ''}`}
+                      className="px-2.5 md:px-2"
                     >
                       <item.icon />
                       <span>{item.label}</span>
