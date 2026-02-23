@@ -4,6 +4,7 @@ import { PanelLeftIcon } from "lucide-react"
 import { Slot } from "radix-ui"
 
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useSidebarResize } from "@/hooks/use-sidebar-resize"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,7 +26,6 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
@@ -38,6 +38,9 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
   toggleSidebar: () => void
+  resizeHandleProps: {
+    onMouseDown: (e: React.MouseEvent) => void
+  }
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
@@ -66,6 +69,7 @@ function SidebarProvider({
 }) {
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
+  const { width: sidebarWidth, handleMouseDown: onResizeMouseDown } = useSidebarResize()
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
@@ -111,6 +115,11 @@ function SidebarProvider({
   // This makes it easier to style the sidebar with Tailwind classes.
   const state = open ? "expanded" : "collapsed"
 
+  const resizeHandleProps = React.useMemo(
+    () => ({ onMouseDown: onResizeMouseDown }),
+    [onResizeMouseDown]
+  )
+
   const contextValue = React.useMemo<SidebarContextProps>(
     () => ({
       state,
@@ -120,8 +129,9 @@ function SidebarProvider({
       openMobile,
       setOpenMobile,
       toggleSidebar,
+      resizeHandleProps,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, resizeHandleProps]
   )
 
   return (
@@ -131,7 +141,7 @@ function SidebarProvider({
           data-slot="sidebar-wrapper"
           style={
             {
-              "--sidebar-width": SIDEBAR_WIDTH,
+              "--sidebar-width": `${sidebarWidth}px`,
               "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
               ...style,
             } as React.CSSProperties
@@ -216,7 +226,7 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+          "relative w-(--sidebar-width) bg-transparent",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -227,7 +237,7 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
+          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right] duration-200 ease-linear md:flex",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
@@ -246,6 +256,7 @@ function Sidebar({
         >
           {children}
         </div>
+        <SidebarResizeHandle />
       </div>
     </div>
   )
@@ -692,6 +703,21 @@ function SidebarMenuSubButton({
         className
       )}
       {...props}
+    />
+  )
+}
+
+function SidebarResizeHandle() {
+  const { resizeHandleProps, state } = useSidebar()
+
+  // Don't show resize handle when sidebar is collapsed
+  if (state === "collapsed") return null
+
+  return (
+    <div
+      data-slot="sidebar-resize-handle"
+      className="absolute inset-y-0 right-0 z-20 w-1.5 cursor-col-resize hover:bg-sidebar-border/60 active:bg-sidebar-border transition-colors"
+      {...resizeHandleProps}
     />
   )
 }
