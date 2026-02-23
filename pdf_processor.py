@@ -13,11 +13,18 @@ LEARNING NOTES:
 - If that doesn't work well, we fall back to OCR
 """
 
+import logging
+import time
 import PyPDF2
 from pdf2image import convert_from_path
 import pytesseract
 from PIL import Image
 import io
+
+logger = logging.getLogger('contract-extractor.pdf')
+
+# Maximum pages to OCR (prevents OOM/hang on large scanned docs)
+_OCR_MAX_PAGES = 20
 
 
 def extract_text_with_pypdf2(pdf_path):
@@ -45,12 +52,12 @@ def extract_text_with_pypdf2(pdf_path):
                     text += page_text
 
     except Exception as e:
-        print(f"PyPDF2 extraction error: {e}")
+        logger.error("PyPDF2 extraction error: %s", e, exc_info=True)
 
     return text
 
 
-def extract_text_with_ocr(pdf_path):
+def extract_text_with_ocr(pdf_path, max_pages=_OCR_MAX_PAGES):
     """
     Extract text from PDF using OCR (Optical Character Recognition).
 
@@ -60,13 +67,17 @@ def extract_text_with_ocr(pdf_path):
     - Documents with handwriting or unusual fonts
 
     Note: OCR is slower but can read "image" text that PyPDF2 can't see.
+    Limited to max_pages to prevent OOM on large scanned documents.
     """
     text = ""
 
     try:
         # Convert PDF pages to images
         # DPI of 200 is a good balance between quality and speed
-        images = convert_from_path(pdf_path, dpi=200)
+        images = convert_from_path(pdf_path, dpi=200, last_page=max_pages)
+
+        if len(images) >= max_pages:
+            logger.warning("OCR limited to first %d pages", max_pages)
 
         # Run OCR on each page image
         for page_num, image in enumerate(images):
@@ -76,7 +87,7 @@ def extract_text_with_ocr(pdf_path):
                 text += page_text
 
     except Exception as e:
-        print(f"OCR extraction error: {e}")
+        logger.error("OCR extraction error: %s", e, exc_info=True)
 
     return text
 
@@ -94,15 +105,21 @@ def extract_text_from_pdf(pdf_path):
     """
 
     # First, try the fast method (PyPDF2)
+    start = time.time()
     pypdf_text = extract_text_with_pypdf2(pdf_path)
+    pypdf_elapsed = time.time() - start
+    logger.info("PyPDF2 extraction: %d chars in %.1fs", len(pypdf_text.strip()), pypdf_elapsed)
 
     # Check if we got meaningful text
     # If less than 500 characters, the PDF might be scanned/image-based
     if len(pypdf_text.strip()) < 500:
-        print("PyPDF2 found little text, trying OCR...")
+        logger.info("PyPDF2 found little text (%d chars), trying OCR...", len(pypdf_text.strip()))
 
         # Try OCR as fallback
+        ocr_start = time.time()
         ocr_text = extract_text_with_ocr(pdf_path)
+        ocr_elapsed = time.time() - ocr_start
+        logger.info("OCR extraction: %d chars in %.1fs", len(ocr_text.strip()), ocr_elapsed)
 
         # Use whichever method gave us more text
         if len(ocr_text) > len(pypdf_text):
@@ -140,6 +157,6 @@ def get_pdf_info(pdf_path):
             info['likely_scanned'] = not info['has_text']
 
     except Exception as e:
-        print(f"Error getting PDF info: {e}")
+        logger.error("Error getting PDF info: %s", e)
 
     return info

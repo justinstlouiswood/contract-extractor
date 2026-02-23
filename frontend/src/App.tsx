@@ -108,6 +108,9 @@ export default function App() {
       setSteps(prev => prev.map((s, i) => i === stepIndex ? { ...s, status, message } : s))
     }
 
+    // Inactivity timeout: if no SSE event arrives within this window, assume failure
+    const INACTIVITY_TIMEOUT_MS = 90_000
+
     try {
       updateStep(0, 'in_progress', 'Checking file...')
       abortControllerRef.current = new AbortController()
@@ -126,11 +129,23 @@ export default function App() {
       const reader = response.body!.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
+      let lastEventTime = Date.now()
 
       while (true) {
-        const { done, value } = await reader.read()
+        // Race between the next chunk and an inactivity timeout
+        const elapsed = Date.now() - lastEventTime
+        const remaining = Math.max(INACTIVITY_TIMEOUT_MS - elapsed, 1000)
+
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error(
+            'Server stopped responding. The AI analysis may be taking longer than expected. Please try again.'
+          )), remaining)
+        })
+
+        const { done, value } = await Promise.race([reader.read(), timeoutPromise])
         if (done) break
 
+        lastEventTime = Date.now()
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n\n')
         buffer = lines.pop() || ''
@@ -160,9 +175,12 @@ export default function App() {
         setFile(null)
         return
       }
-      setError((err as Error).message || 'An error occurred during processing')
-      setView('empty')
-      setFile(null)
+      const errorMessage = (err as Error).message || 'An error occurred during processing'
+      // Mark the currently in-progress step as errored so user sees which step failed
+      setSteps(prev => prev.map(s =>
+        s.status === 'in_progress' ? { ...s, status: 'error' as const, message: errorMessage } : s
+      ))
+      setError(errorMessage)
     }
   }
 

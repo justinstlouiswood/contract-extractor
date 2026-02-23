@@ -13,15 +13,25 @@ import os
 import re
 import uuid
 import hashlib
+import logging
+import time
 import requests as http_requests
 from pathlib import Path
 import json as json_module
-from flask import Flask, request, jsonify, render_template, session, url_for, send_file, Response
+import httpx
+from flask import Flask, request, jsonify, render_template, session, url_for, send_file, Response, stream_with_context
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import anthropic
 from pdf_processor import extract_text_from_pdf
 import email_service
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(name)s: %(message)s'
+)
+logger = logging.getLogger('contract-extractor')
 
 # Load environment variables
 env_path = Path(__file__).parent / '.env'
@@ -36,8 +46,11 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
 ALLOWED_EXTENSIONS = {'pdf'}
 
-# Initialize the Anthropic client
-client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+# Initialize the Anthropic client with explicit timeout (default is 600s)
+client = anthropic.Anthropic(
+    api_key=os.getenv('ANTHROPIC_API_KEY'),
+    timeout=httpx.Timeout(120.0, connect=10.0),
+)
 
 # In-memory extraction cache: SHA-256 file hash -> result dict
 _extraction_cache: dict[str, dict] = {}
@@ -294,7 +307,7 @@ def parse_extracted_data(extracted_text):
         data['confidence'] = calculate_all_confidence_scores(data, signals)
 
     except Exception as e:
-        print(f"Error parsing extracted data: {e}")
+        logger.error("Error parsing extracted data: %s", e, exc_info=True)
         # Still return data without confidence if calculation fails
         data['confidence'] = {}
 
@@ -705,6 +718,7 @@ def upload_file():
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], f'{pdf_id}.pdf')
         file.save(pdf_path)
+        logger.info("[/upload] Saved %s as %s", filename, pdf_id)
 
         # Check extraction cache by file hash
         with open(pdf_path, 'rb') as f:
@@ -712,6 +726,7 @@ def upload_file():
 
         if file_hash in _extraction_cache:
             cached = _extraction_cache[file_hash]
+            logger.info("[/upload] Cache hit for %s (hash=%s)", filename, file_hash[:12])
             return jsonify({
                 'success': True,
                 'pdf_id': pdf_id,
@@ -724,9 +739,11 @@ def upload_file():
             })
 
         # Extract text from PDF
+        logger.info("[/upload] Extracting text from %s", filename)
         pdf_text = extract_text_from_pdf(pdf_path)
 
         if not pdf_text or len(pdf_text.strip()) < 100:
+            logger.warning("[/upload] Insufficient text from %s (%d chars)", filename, len(pdf_text or ''))
             # Clean up if extraction fails
             if os.path.exists(pdf_path):
                 os.remove(pdf_path)
@@ -735,13 +752,17 @@ def upload_file():
             }), 400
 
         # Send to Claude for analysis
+        logger.info("[/upload] Calling Claude API for %s (%d chars of text)", filename, len(pdf_text))
         extracted_info = extract_contract_info(pdf_text)
+        logger.info("[/upload] Claude API returned %d chars", len(extracted_info))
 
         # Parse into structured data
         parsed_data = parse_extracted_data(extracted_info)
 
         # Generate condensed summary
         summary = generate_summary(parsed_data)
+        logger.info("[/upload] Extraction complete. Customer: %s, TCV: %s",
+                     parsed_data.get('customer_name'), parsed_data.get('total_contract_value'))
 
         # Cache extraction result (evict oldest if at capacity)
         if len(_extraction_cache) >= _EXTRACTION_CACHE_MAX:
@@ -765,8 +786,10 @@ def upload_file():
         })
 
     except anthropic.APIError as e:
+        logger.error("[/upload] Claude API error: %s", e, exc_info=True)
         return jsonify({'error': f'Claude API error: {str(e)}'}), 500
     except Exception as e:
+        logger.error("[/upload] Processing error: %s", e, exc_info=True)
         return jsonify({'error': f'Processing error: {str(e)}'}), 500
 
 
@@ -798,6 +821,8 @@ def upload_file_stream():
 
     def generate():
         try:
+            logger.info("Starting extraction for %s (pdf_id=%s)", filename, pdf_id)
+
             # Step 0: File validated
             yield _sse_event({'event': 'step', 'step': 0, 'status': 'complete', 'message': 'File validated'})
 
@@ -810,6 +835,7 @@ def upload_file_stream():
 
             if file_hash in _extraction_cache:
                 cached = _extraction_cache[file_hash]
+                logger.info("Cache hit for %s (hash=%s)", filename, file_hash[:12])
                 yield _sse_event({'event': 'step', 'step': 1, 'status': 'complete', 'message': 'Text extracted (cached)'})
                 yield _sse_event({'event': 'step', 'step': 2, 'status': 'complete', 'message': 'Analysis complete (cached)'})
                 yield _sse_event({'event': 'step', 'step': 3, 'status': 'complete', 'message': 'Summary ready (cached)'})
@@ -819,15 +845,19 @@ def upload_file_stream():
                 }})
                 return
 
+            extract_start = time.time()
             pdf_text = extract_text_from_pdf(pdf_path)
+            extract_elapsed = time.time() - extract_start
 
             if not pdf_text or len(pdf_text.strip()) < 100:
+                logger.warning("Insufficient text from %s (%d chars in %.1fs)", filename, len(pdf_text or ''), extract_elapsed)
                 if os.path.exists(pdf_path):
                     os.remove(pdf_path)
                 yield _sse_event({'event': 'error', 'message': 'Could not extract sufficient text from the PDF.'})
                 return
 
             page_count = pdf_text.count('--- Page ')
+            logger.info("Text extraction complete: %d pages, %d chars in %.1fs", page_count, len(pdf_text), extract_elapsed)
             yield _sse_event({'event': 'step', 'step': 1, 'status': 'complete', 'message': f'Extracted {page_count} pages'})
 
             # Step 2: Claude analysis with streaming
@@ -836,20 +866,52 @@ def upload_file_stream():
             prompt = build_extraction_prompt(pdf_text)
             collected_text = []
             char_count = 0
+            extracted_info = None
+            api_start = time.time()
 
-            with client.messages.stream(
-                model="claude-sonnet-4-20250514",
-                max_tokens=5120,
-                messages=[{"role": "user", "content": prompt}]
-            ) as stream:
-                for text_chunk in stream.text_stream:
-                    collected_text.append(text_chunk)
-                    char_count += len(text_chunk)
-                    if char_count % 500 < len(text_chunk):
-                        yield _sse_event({'event': 'step', 'step': 2, 'status': 'in_progress',
-                                          'message': f'Analyzing... ({char_count} chars extracted)'})
+            # Attempt streaming Claude call with structured error handling
+            try:
+                with client.messages.stream(
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=5120,
+                    messages=[{"role": "user", "content": prompt}]
+                ) as stream:
+                    for text_chunk in stream.text_stream:
+                        collected_text.append(text_chunk)
+                        char_count += len(text_chunk)
+                        if char_count % 500 < len(text_chunk):
+                            yield _sse_event({'event': 'step', 'step': 2, 'status': 'in_progress',
+                                              'message': f'Analyzing... ({char_count} chars extracted)'})
 
-            extracted_info = ''.join(collected_text)
+                if collected_text:
+                    extracted_info = ''.join(collected_text)
+
+            except anthropic.APIStatusError as e:
+                logger.error("Claude API status error (HTTP %s): %s", e.status_code, e.message)
+            except anthropic.APIConnectionError as e:
+                logger.error("Claude API connection error: %s", e)
+            except httpx.TimeoutException as e:
+                logger.error("Claude API timeout after %.1fs: %s", time.time() - api_start, e)
+
+            # Fallback to non-streaming if streaming produced no output
+            if not extracted_info:
+                logger.info("Streaming produced no output, falling back to non-streaming call")
+                yield _sse_event({'event': 'step', 'step': 2, 'status': 'in_progress',
+                                  'message': 'Retrying analysis...'})
+                try:
+                    message = client.messages.create(
+                        model="claude-sonnet-4-20250514",
+                        max_tokens=5120,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
+                    extracted_info = message.content[0].text
+                except Exception as fallback_err:
+                    logger.error("Non-streaming fallback also failed: %s", fallback_err, exc_info=True)
+                    yield _sse_event({'event': 'error', 'message': f'AI analysis failed: {str(fallback_err)}'})
+                    return
+
+            api_elapsed = time.time() - api_start
+            logger.info("Claude analysis complete: %d chars output in %.1fs", len(extracted_info), api_elapsed)
             yield _sse_event({'event': 'step', 'step': 2, 'status': 'complete', 'message': 'Analysis complete'})
 
             # Step 3: Parse and summarize
@@ -857,6 +919,8 @@ def upload_file_stream():
 
             parsed_data = parse_extracted_data(extracted_info)
             summary = generate_summary(parsed_data)
+            logger.info("Parsing complete. Customer: %s, TCV: %s",
+                         parsed_data.get('customer_name'), parsed_data.get('total_contract_value'))
 
             # Cache extraction result
             if len(_extraction_cache) >= _EXTRACTION_CACHE_MAX:
@@ -883,16 +947,19 @@ def upload_file_stream():
             }})
 
         except anthropic.APIError as e:
+            logger.error("Claude API error during extraction: %s", e, exc_info=True)
             yield _sse_event({'event': 'error', 'message': f'Claude API error: {str(e)}'})
         except Exception as e:
+            logger.error("Unexpected error during extraction: %s", e, exc_info=True)
             yield _sse_event({'event': 'error', 'message': f'Processing error: {str(e)}'})
 
     return Response(
-        generate(),
+        stream_with_context(generate()),
         mimetype='text/event-stream',
         headers={
             'Cache-Control': 'no-cache',
             'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
         }
     )
 

@@ -1,4 +1,4 @@
-import { FileText, Check, Square } from 'lucide-react'
+import { FileText, Check, Square, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import type { ProcessingStep } from '@/types/contract'
@@ -23,16 +23,20 @@ function ProgressStep({ number, label, status, message }: { number: number; labe
     <div className="flex items-start gap-4 py-3.5">
       <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[13px] font-semibold ${
         status === 'complete' ? 'bg-foreground text-background' :
+        status === 'error' ? 'border border-danger-ring bg-danger-bg text-danger-text' :
         status === 'in_progress' ? 'border border-foreground text-foreground' :
         'border border-border text-muted-foreground'
       }`}>
-        {status === 'complete' ? <Check className="h-4 w-4" /> : number}
+        {status === 'complete' ? <Check className="h-4 w-4" /> :
+         status === 'error' ? <AlertCircle className="h-4 w-4" /> :
+         number}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium">{label}</div>
-        <div className="mt-0.5 text-xs text-muted-foreground">{
+        <div className={`text-sm font-medium ${status === 'error' ? 'text-danger-text' : ''}`}>{label}</div>
+        <div className={`mt-0.5 text-xs ${status === 'error' ? 'text-danger-text' : 'text-muted-foreground'}`}>{
           status === 'in_progress' && message ? message :
           status === 'complete' && message ? message :
+          status === 'error' && message ? message :
           description
         }</div>
         {status === 'in_progress' && (
@@ -47,6 +51,7 @@ function ProgressStep({ number, label, status, message }: { number: number; labe
 
 export function ProcessingView({ filename, steps, onStop }: ProcessingViewProps) {
   const completedSteps = steps.filter(s => s.status === 'complete').length
+  const hasError = steps.some(s => s.status === 'error')
   const progress = (completedSteps / steps.length) * 100
 
   return (
@@ -68,8 +73,12 @@ export function ProcessingView({ filename, steps, onStop }: ProcessingViewProps)
         {/* Overall progress */}
         <div className="mt-6 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Overall Progress</span>
-            <span className="text-xs text-muted-foreground">{Math.round(progress)}%</span>
+            <span className={`text-xs ${hasError ? 'text-danger-text' : 'text-muted-foreground'}`}>
+              {hasError ? 'Processing failed' : 'Overall Progress'}
+            </span>
+            <span className={`text-xs ${hasError ? 'text-danger-text' : 'text-muted-foreground'}`}>
+              {hasError ? '' : `${Math.round(progress)}%`}
+            </span>
           </div>
           <Progress value={progress} className="h-1.5" />
         </div>

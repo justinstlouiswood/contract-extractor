@@ -79,7 +79,7 @@ export interface GmailAuth {
 
 export interface ProcessingStep {
   label: string
-  status: 'pending' | 'in_progress' | 'complete'
+  status: 'pending' | 'in_progress' | 'complete' | 'error'
   message: string
 }
 
