@@ -12,9 +12,11 @@ Features:
 import os
 import re
 import uuid
+import hashlib
 import requests as http_requests
 from pathlib import Path
-from flask import Flask, request, jsonify, render_template, session, url_for, send_file
+import json as json_module
+from flask import Flask, request, jsonify, render_template, session, url_for, send_file, Response
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import anthropic
@@ -36,6 +38,10 @@ ALLOWED_EXTENSIONS = {'pdf'}
 
 # Initialize the Anthropic client
 client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+
+# In-memory extraction cache: SHA-256 file hash -> result dict
+_extraction_cache: dict[str, dict] = {}
+_EXTRACTION_CACHE_MAX = 50
 
 
 def allowed_file(filename):
@@ -260,9 +266,26 @@ def parse_extracted_data(extracted_text):
                 signal = clause_match.group(1).upper() if clause_match.group(1) else 'EXPLICIT'
                 page_str = clause_match.group(2) or ''
                 pages = [int(p) for p in page_str.split(',') if p] if page_str else []
+
+                verbatim = None
+                risk = None
+                if present:
+                    # Search for VERBATIM and RISK lines after the clause match
+                    after_text = extracted_text[clause_match.end():]
+                    # Limit search window to ~500 chars (before next clause)
+                    window = after_text[:500]
+                    verb_match = re.search(r'VERBATIM:\s*"?(.+?)"?\s*(?:\n|$)', window)
+                    if verb_match:
+                        verbatim = verb_match.group(1).strip().strip('"')
+                    risk_match = re.search(r'RISK:\s*(STANDARD|FAVORABLE|UNUSUAL)', window, re.IGNORECASE)
+                    if risk_match:
+                        risk = risk_match.group(1).upper()
+
                 data['clauses'][clause_key] = {
                     'present': present,
                     'description': description,
+                    'verbatim': verbatim,
+                    'risk': risk,
                 }
                 signals[f'clause_{clause_key}'] = signal
                 data['page_refs'][f'clause_{clause_key}'] = pages
@@ -476,12 +499,8 @@ def calculate_all_confidence_scores(parsed_data, signals):
     return confidence
 
 
-def extract_contract_info(text):
-    """
-    Send the PDF text to Claude and ask it to extract key information.
-    V3: Precise extraction with numbered sections and confidence signals.
-    """
-
+def build_extraction_prompt(text):
+    """Build the Claude extraction prompt. Separated from API call for streaming use."""
     prompt = """You are a contract extraction specialist. Your task is to extract SPECIFIC information from an MSA (Master Service Agreement) Order Form and output it in a precise, structured format.
 
 CRITICAL INSTRUCTIONS:
@@ -546,14 +565,34 @@ CONTRACT SUMMARY OF [CUSTOMER NAME]
 
 6. KEY CLAUSES
    For each clause type below, indicate YES or NO and include a brief description if the clause is present.
-   6.1 Auto-Renewal: [SIGNAL:PAGE] YES/NO — [brief description if yes, e.g. "Renews annually unless 90-day notice"]
+   For each YES clause, also provide on the NEXT two lines:
+       VERBATIM: Copy the exact sentence(s) from the contract that establish this clause (1-3 sentences, in quotes)
+       RISK: Assess as STANDARD (typical market terms), FAVORABLE (advantageous to customer), or UNUSUAL (non-standard, worth flagging)
+   For NO clauses, do NOT include VERBATIM or RISK lines.
+   6.1 Auto-Renewal: [SIGNAL:PAGE] YES/NO — [brief description if yes]
+       VERBATIM: "[exact contract language if YES]"
+       RISK: [STANDARD|FAVORABLE|UNUSUAL if YES]
    6.2 Termination for Convenience: [SIGNAL:PAGE] YES/NO — [brief description if yes]
+       VERBATIM: "[exact contract language if YES]"
+       RISK: [STANDARD|FAVORABLE|UNUSUAL if YES]
    6.3 SLA Guarantee: [SIGNAL:PAGE] YES/NO — [brief description if yes]
+       VERBATIM: "[exact contract language if YES]"
+       RISK: [STANDARD|FAVORABLE|UNUSUAL if YES]
    6.4 Liability Cap: [SIGNAL:PAGE] YES/NO — [brief description if yes]
+       VERBATIM: "[exact contract language if YES]"
+       RISK: [STANDARD|FAVORABLE|UNUSUAL if YES]
    6.5 Data Processing / DPA: [SIGNAL:PAGE] YES/NO — [brief description if yes]
+       VERBATIM: "[exact contract language if YES]"
+       RISK: [STANDARD|FAVORABLE|UNUSUAL if YES]
    6.6 Price Escalation: [SIGNAL:PAGE] YES/NO — [brief description if yes]
+       VERBATIM: "[exact contract language if YES]"
+       RISK: [STANDARD|FAVORABLE|UNUSUAL if YES]
    6.7 Exclusivity: [SIGNAL:PAGE] YES/NO — [brief description if yes]
+       VERBATIM: "[exact contract language if YES]"
+       RISK: [STANDARD|FAVORABLE|UNUSUAL if YES]
    6.8 Indemnification: [SIGNAL:PAGE] YES/NO — [brief description if yes]
+       VERBATIM: "[exact contract language if YES]"
+       RISK: [STANDARD|FAVORABLE|UNUSUAL if YES]
 
 EXAMPLE OUTPUT:
    1.1 Customer Legal Name: [EXPLICIT:1] Acme Corporation Inc.
@@ -561,6 +600,8 @@ EXAMPLE OUTPUT:
    Duration: [INFERRED:2,3] 3 years
    1.2 Point of Contact: [PARTIAL:1] John Smith <Not specified>
    6.1 Auto-Renewal: [EXPLICIT:4] YES — Auto-renews for successive 1-year terms unless 90-day written notice
+       VERBATIM: "This agreement shall automatically renew for successive one-year periods unless either party provides written notice of non-renewal at least ninety (90) days prior to the end of the then-current term."
+       RISK: STANDARD
    6.3 SLA Guarantee: [NOT_FOUND:0] NO
 
 ---
@@ -578,12 +619,21 @@ Extract the information following the EXACT format above. Remember:
 - Do NOT include horizontal line dividers (═══ or ───)
 - For Section 4, ONLY output the MSA reference date - nothing else
 - ALWAYS include the extraction signal with page reference [EXPLICIT:N], [INFERRED:N], [PARTIAL:N], [MULTIPLE:N,M], or [NOT_FOUND:0] before each value"""
+    return prompt.format(text=text)
+
+
+def extract_contract_info(text):
+    """
+    Send the PDF text to Claude and ask it to extract key information.
+    V3: Precise extraction with numbered sections and confidence signals.
+    """
+    prompt = build_extraction_prompt(text)
 
     message = client.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=4096,
+        max_tokens=5120,
         messages=[
-            {"role": "user", "content": prompt.format(text=text)}
+            {"role": "user", "content": prompt}
         ]
     )
 
@@ -656,6 +706,23 @@ def upload_file():
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], f'{pdf_id}.pdf')
         file.save(pdf_path)
 
+        # Check extraction cache by file hash
+        with open(pdf_path, 'rb') as f:
+            file_hash = hashlib.sha256(f.read()).hexdigest()
+
+        if file_hash in _extraction_cache:
+            cached = _extraction_cache[file_hash]
+            return jsonify({
+                'success': True,
+                'pdf_id': pdf_id,
+                'filename': filename,
+                'extracted_info': cached['extracted_info'],
+                'parsed_data': cached['parsed_data'],
+                'summary': cached['summary'],
+                'text_length': cached['text_length'],
+                'cached': True,
+            })
+
         # Extract text from PDF
         pdf_text = extract_text_from_pdf(pdf_path)
 
@@ -676,6 +743,17 @@ def upload_file():
         # Generate condensed summary
         summary = generate_summary(parsed_data)
 
+        # Cache extraction result (evict oldest if at capacity)
+        if len(_extraction_cache) >= _EXTRACTION_CACHE_MAX:
+            oldest_key = next(iter(_extraction_cache))
+            del _extraction_cache[oldest_key]
+        _extraction_cache[file_hash] = {
+            'extracted_info': extracted_info,
+            'parsed_data': parsed_data,
+            'summary': summary,
+            'text_length': len(pdf_text),
+        }
+
         return jsonify({
             'success': True,
             'pdf_id': pdf_id,
@@ -691,6 +769,132 @@ def upload_file():
     except Exception as e:
         return jsonify({'error': f'Processing error: {str(e)}'}), 500
 
+
+def _sse_event(data):
+    """Format a dict as an SSE data line."""
+    return f"data: {json_module.dumps(data)}\n\n"
+
+
+@app.route('/upload-stream', methods=['POST'])
+def upload_file_stream():
+    """Handle PDF upload with SSE progress streaming and Claude token streaming."""
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'Only PDF files are allowed'}), 400
+
+    filename = secure_filename(file.filename)
+    pdf_id = str(uuid.uuid4())
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], f'{pdf_id}.pdf')
+    file.save(pdf_path)
+
+    def generate():
+        try:
+            # Step 0: File validated
+            yield _sse_event({'event': 'step', 'step': 0, 'status': 'complete', 'message': 'File validated'})
+
+            # Step 1: Text extraction
+            yield _sse_event({'event': 'step', 'step': 1, 'status': 'in_progress', 'message': 'Extracting text from PDF...'})
+
+            # Check extraction cache by file hash
+            with open(pdf_path, 'rb') as f:
+                file_hash = hashlib.sha256(f.read()).hexdigest()
+
+            if file_hash in _extraction_cache:
+                cached = _extraction_cache[file_hash]
+                yield _sse_event({'event': 'step', 'step': 1, 'status': 'complete', 'message': 'Text extracted (cached)'})
+                yield _sse_event({'event': 'step', 'step': 2, 'status': 'complete', 'message': 'Analysis complete (cached)'})
+                yield _sse_event({'event': 'step', 'step': 3, 'status': 'complete', 'message': 'Summary ready (cached)'})
+                yield _sse_event({'event': 'complete', 'result': {
+                    'success': True, 'pdf_id': pdf_id, 'filename': filename,
+                    **cached, 'cached': True,
+                }})
+                return
+
+            pdf_text = extract_text_from_pdf(pdf_path)
+
+            if not pdf_text or len(pdf_text.strip()) < 100:
+                if os.path.exists(pdf_path):
+                    os.remove(pdf_path)
+                yield _sse_event({'event': 'error', 'message': 'Could not extract sufficient text from the PDF.'})
+                return
+
+            page_count = pdf_text.count('--- Page ')
+            yield _sse_event({'event': 'step', 'step': 1, 'status': 'complete', 'message': f'Extracted {page_count} pages'})
+
+            # Step 2: Claude analysis with streaming
+            yield _sse_event({'event': 'step', 'step': 2, 'status': 'in_progress', 'message': 'Claude is analyzing the contract...'})
+
+            prompt = build_extraction_prompt(pdf_text)
+            collected_text = []
+            char_count = 0
+
+            with client.messages.stream(
+                model="claude-sonnet-4-20250514",
+                max_tokens=5120,
+                messages=[{"role": "user", "content": prompt}]
+            ) as stream:
+                for text_chunk in stream.text_stream:
+                    collected_text.append(text_chunk)
+                    char_count += len(text_chunk)
+                    if char_count % 500 < len(text_chunk):
+                        yield _sse_event({'event': 'step', 'step': 2, 'status': 'in_progress',
+                                          'message': f'Analyzing... ({char_count} chars extracted)'})
+
+            extracted_info = ''.join(collected_text)
+            yield _sse_event({'event': 'step', 'step': 2, 'status': 'complete', 'message': 'Analysis complete'})
+
+            # Step 3: Parse and summarize
+            yield _sse_event({'event': 'step', 'step': 3, 'status': 'in_progress', 'message': 'Generating summary...'})
+
+            parsed_data = parse_extracted_data(extracted_info)
+            summary = generate_summary(parsed_data)
+
+            # Cache extraction result
+            if len(_extraction_cache) >= _EXTRACTION_CACHE_MAX:
+                oldest_key = next(iter(_extraction_cache))
+                del _extraction_cache[oldest_key]
+            _extraction_cache[file_hash] = {
+                'extracted_info': extracted_info,
+                'parsed_data': parsed_data,
+                'summary': summary,
+                'text_length': len(pdf_text),
+            }
+
+            yield _sse_event({'event': 'step', 'step': 3, 'status': 'complete', 'message': 'Summary generated'})
+
+            # Final result
+            yield _sse_event({'event': 'complete', 'result': {
+                'success': True,
+                'pdf_id': pdf_id,
+                'filename': filename,
+                'extracted_info': extracted_info,
+                'parsed_data': parsed_data,
+                'summary': summary,
+                'text_length': len(pdf_text),
+            }})
+
+        except anthropic.APIError as e:
+            yield _sse_event({'event': 'error', 'message': f'Claude API error: {str(e)}'})
+        except Exception as e:
+            yield _sse_event({'event': 'error', 'message': f'Processing error: {str(e)}'})
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+        }
+    )
 
 
 # ============================================
@@ -1030,7 +1234,7 @@ def serve_pdf(pdf_id):
     if not os.path.exists(pdf_path):
         return jsonify({'error': 'PDF not found'}), 404
 
-    return send_file(pdf_path, mimetype='application/pdf')
+    return send_file(pdf_path, mimetype='application/pdf', max_age=3600)
 
 
 @app.route('/pdf/<pdf_id>/check')

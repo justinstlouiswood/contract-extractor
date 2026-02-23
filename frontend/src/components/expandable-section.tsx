@@ -17,7 +17,7 @@ interface ExpandableSectionProps {
 export function ExpandableSection({ title, fieldCount, isExpanded, onToggle, children, isVerified, onVerify }: ExpandableSectionProps) {
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
-      <div className="flex items-center gap-2 rounded-sm border border-border bg-card px-3 py-2 shadow-card">
+      <div className={`flex items-center gap-2 rounded-sm border border-border bg-card px-3 py-2 shadow-card${onVerify !== undefined && !isVerified ? ' opacity-80' : ''}`}>
         {onVerify !== undefined && (
           <Checkbox
             checked={isVerified}

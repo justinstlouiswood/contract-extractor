@@ -116,7 +116,7 @@ export function AppSidebar({
                         setOpen(true)
                       }}
                       isActive={activeNav === item.key}
-                      className="px-2.5 md:px-2"
+                      className={`px-2.5 md:px-2 ${activeNav === item.key ? 'border-l-2 border-l-foreground' : ''}`}
                     >
                       <item.icon />
                       <span>{item.label}</span>
@@ -189,7 +189,7 @@ export function AppSidebar({
                     key={contract.id}
                     className={`group relative flex w-full border-b last:border-b-0 ${
                       isSelected
-                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                        ? 'border-l-2 border-l-foreground bg-sidebar-accent text-sidebar-accent-foreground'
                         : 'hover:bg-sidebar-accent/50'
                     }`}
                   >
@@ -200,9 +200,6 @@ export function AppSidebar({
                       <div className="flex w-full items-center gap-2">
                         <span className="truncate font-medium">
                           {contract.customer_name || 'Unknown Customer'}
-                        </span>
-                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                          {formatListDate(contract.date_processed)}
                         </span>
                       </div>
                       <div className="flex w-full items-center gap-2">
@@ -215,6 +212,9 @@ export function AppSidebar({
                         >
                           {status === 'needs_review' ? 'Needs Review' : 'Extracted'}
                         </Badge>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {formatListDate(contract.date_processed)}
+                        </span>
                       </div>
                     </button>
                     <button

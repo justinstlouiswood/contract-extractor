@@ -24,6 +24,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      '/upload-stream': 'http://localhost:5001',
       '/upload': 'http://localhost:5001',
       '/send-email': 'http://localhost:5001',
       '/send-slack': 'http://localhost:5001',

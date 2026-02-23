@@ -146,7 +146,12 @@ export function ReviewView({ data, gmailAuth, onGmailAuthClick, onSendEmail, onS
           onVerify={() => toggleCategory('signatures')}
         >
           <ReviewFieldTable fields={sigFields} {...fieldTableProps} />
-          <ClauseTags clauses={parsed_data.clauses} />
+          <ClauseTags
+            clauses={parsed_data.clauses}
+            pageRefs={parsed_data.page_refs}
+            onScrollToPage={onScrollToPage}
+            customerName={parsed_data.customer_name}
+          />
         </ExpandableSection>
       )}
 

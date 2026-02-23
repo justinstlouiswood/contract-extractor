@@ -51,6 +51,7 @@
   --color-danger-bg: var(--danger-bg);
   --color-danger-ring: var(--danger-ring);
   --color-danger-text: var(--danger-text);
+  --color-caution-text: var(--caution-text);
 
   /* Theme-aware semantic colors */
   --color-muted-alt: var(--muted-alt);
@@ -129,6 +130,9 @@
 
   /* Muted alternate */
   --muted-alt: #8A8A8A;
+
+  /* Caution (amber) */
+  --caution-text: #B45309;
 
   /* Extracted badge */
   --extracted-bg: #F0FDF4;

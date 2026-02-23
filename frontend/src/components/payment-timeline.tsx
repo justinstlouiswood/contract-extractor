@@ -56,7 +56,7 @@ export function PaymentTimeline({ parsed_data }: PaymentTimelineProps) {
         <div className="relative flex items-center">
           <div className="absolute left-4 right-4 h-px bg-border" />
 
-          <div className="relative flex w-full justify-between">
+          <div className="relative grid w-full" style={{ gridTemplateColumns: `repeat(${events.length}, 1fr)` }}>
             {events.map((evt, i) => (
               <div key={i} className="flex flex-col items-center">
                 {/* Dot — centered on the baseline */}
@@ -73,7 +73,7 @@ export function PaymentTimeline({ parsed_data }: PaymentTimelineProps) {
         </div>
 
         {/* Labels row — positioned directly below the dot row */}
-        <div className="mt-1.5 flex w-full justify-between">
+        <div className="mt-1.5 grid w-full" style={{ gridTemplateColumns: `repeat(${events.length}, 1fr)` }}>
           {events.map((evt, i) => (
             <div key={i} className="flex flex-col items-center">
               <span className="text-xs tabular-nums text-foreground">

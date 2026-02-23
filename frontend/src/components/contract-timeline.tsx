@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Badge } from '@/components/ui/badge'
 import { parseContractDate, formatShortDate } from '@/lib/contract-utils'
 import type { ParsedData } from '@/types/contract'
 
@@ -41,9 +42,7 @@ export function ContractTimeline({ parsed_data }: ContractTimelineProps) {
         <span className="text-xs font-semibold text-muted-foreground">Contract Timeline</span>
         <div className="flex items-center gap-2">
           {!isActive && new Date() > end && (
-            <span className="rounded-md border border-review-border bg-review-bg px-2 py-0.5 text-xs font-medium text-review-text">
-              Expired
-            </span>
+            <Badge variant="review" className="text-xs">Expired</Badge>
           )}
           <span className="text-xs text-muted-foreground">{parsed_data.duration || ''}</span>
         </div>

@@ -2,6 +2,12 @@ import { useMemo } from 'react'
 import { getHeatmapColor, getConfidenceFieldLabel } from '@/lib/contract-utils'
 import type { ParsedData } from '@/types/contract'
 
+function getAvgColor(s: number): string {
+  if (s >= 85) return 'text-success-text'
+  if (s >= 70) return 'text-caution-text'
+  return 'text-danger-text'
+}
+
 interface ConfidenceHeatmapProps {
   parsed_data: ParsedData
 }
@@ -40,7 +46,9 @@ export function ConfidenceHeatmap({ parsed_data }: ConfidenceHeatmapProps) {
     <div className="rounded-sm border border-border bg-card p-2.5 shadow-card">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-semibold text-foreground">Extraction Confidence</span>
-        <span className="text-xs text-muted-foreground">avg {avg}%</span>
+        <span className="text-xs text-muted-foreground">
+          avg <span className={`tabular-nums ${getAvgColor(avg)}`}>{avg}%</span>
+        </span>
       </div>
 
       <div className="space-y-2">

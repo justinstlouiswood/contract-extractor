@@ -298,6 +298,40 @@ export const CLAUSE_LABELS: Record<string, string> = {
   indemnification: 'Indemnification',
 }
 
+export const CLAUSE_LABELS_FULL: Record<string, string> = {
+  auto_renewal: 'Auto-Renewal',
+  termination_convenience: 'Termination for Convenience',
+  sla_guarantee: 'SLA Guarantee',
+  liability_cap: 'Liability Cap',
+  data_processing: 'Data Processing / DPA',
+  price_escalation: 'Price Escalation',
+  exclusivity: 'Exclusivity',
+  indemnification: 'Indemnification',
+}
+
+export function exportClauseSummary(
+  clauses: Record<string, import('@/types/contract').ClauseInfo> | undefined,
+  pageRefs: Record<string, number[]> | undefined,
+  customerName?: string,
+) {
+  if (!clauses) return
+  const rows: string[][] = [['Clause', 'Detected', 'Page', 'Description', 'Risk', 'Verbatim']]
+  for (const key of Object.keys(CLAUSE_LABELS_FULL)) {
+    const info = clauses[key]
+    const pages = pageRefs?.[`clause_${key}`] ?? []
+    rows.push([
+      CLAUSE_LABELS_FULL[key],
+      info?.present ? 'Yes' : 'No',
+      pages.length > 0 ? pages.join(', ') : '',
+      info?.description ?? '',
+      info?.risk ?? '',
+      info?.verbatim ?? '',
+    ])
+  }
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+  downloadFile(csv, sanitizeFilename(customerName || 'contract') + '_clauses.csv', 'text/csv;charset=utf-8;')
+}
+
 export function exportToExcel(parsed_data: ParsedData, editedFields: Record<string, string> = {}) {
   const data = buildExportData(parsed_data, editedFields)
   const rows = [

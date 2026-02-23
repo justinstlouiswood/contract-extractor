@@ -1,4 +1,5 @@
 import { Pencil } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -73,6 +74,13 @@ export function ReviewFieldTable({
         </TableRow>
       </TableHeader>
       <TableBody>
+        {fields.length === 0 && (
+          <TableRow>
+            <TableCell colSpan={4} className="px-2 py-4 text-center text-xs text-muted-foreground">
+              No fields extracted for this section.
+            </TableCell>
+          </TableRow>
+        )}
         {fields.map(field => {
           const isEditing = editingField === field.key
           const displayValue = editedFields[field.key] !== undefined ? editedFields[field.key] : field.value
@@ -94,9 +102,7 @@ export function ReviewFieldTable({
               <TableCell className="px-2 py-1 text-xs text-muted-foreground">
                 {field.label}
                 {needsReview && (
-                  <span className="ml-1.5 rounded-md border border-review-border bg-review-bg px-1 py-0.5 text-xs font-medium text-review-text">
-                    Review
-                  </span>
+                  <Badge variant="review" className="ml-1.5 text-xs">Review</Badge>
                 )}
               </TableCell>
               <TableCell className="px-2 py-1">

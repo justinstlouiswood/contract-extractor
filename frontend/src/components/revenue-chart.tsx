@@ -46,7 +46,7 @@ function EscalationLabel(props: any) {
     <g>
       <line
         x1={cx}
-        y1={y - 8}
+        y1={y - 10}
         x2={cx}
         y2={y}
         className="stroke-muted-foreground"
@@ -54,7 +54,7 @@ function EscalationLabel(props: any) {
       />
       <text
         x={cx}
-        y={y - 14}
+        y={y - 18}
         textAnchor="middle"
         className="fill-foreground"
         style={{ fontSize: 10, fontWeight: 600, fontFamily: "'Inter', sans-serif" }}
@@ -118,7 +118,7 @@ export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: Re
       </div>
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 24, right: 8, left: 0, bottom: 2 }}>
+          <ComposedChart data={data} margin={{ top: 24, right: 8, left: 8, bottom: 2 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
             <XAxis
               dataKey="name"

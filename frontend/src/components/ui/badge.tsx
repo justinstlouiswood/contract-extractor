@@ -28,6 +28,8 @@ const badgeVariants = cva(
           "bg-muted text-muted-foreground border-border",
         extracted:
           "rounded-md bg-extracted-bg text-extracted-text border-extracted-border",
+        review:
+          "bg-review-bg text-review-text border-review-border",
       },
     },
     defaultVariants: {

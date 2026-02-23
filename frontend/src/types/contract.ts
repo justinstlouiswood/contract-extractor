@@ -18,6 +18,8 @@ export interface AnnualFee {
 export interface ClauseInfo {
   present: boolean
   description?: string | null
+  verbatim?: string | null
+  risk?: 'STANDARD' | 'FAVORABLE' | 'UNUSUAL' | null
 }
 
 export interface ParsedData {

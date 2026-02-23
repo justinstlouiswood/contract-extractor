@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Copy, Mail, Lock, Table2, ChevronRight } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -24,6 +25,12 @@ function SlackIcon({ className }: { className?: string }) {
       <path d="M8.5 5H10V3.5A1.5 1.5 0 1 0 8.5 5" />
     </svg>
   )
+}
+
+function getAvgColor(s: number): string {
+  if (s >= 85) return 'text-success-text'
+  if (s >= 70) return 'text-caution-text'
+  return 'text-danger-text'
 }
 
 interface TierGroup {
@@ -121,9 +128,7 @@ export function SummaryCard({
             <span className="text-xs text-muted-alt">{currency}</span>
           )}
           {tcvNeedsReview && (
-            <span className="rounded-md border border-review-border bg-review-bg px-1.5 py-0.5 text-xs font-medium text-review-text">
-              Review
-            </span>
+            <Badge variant="review" className="text-xs">Review</Badge>
           )}
           <span className="ml-auto shrink-0 text-xs text-muted-foreground">
             {dateRange}
@@ -183,7 +188,7 @@ export function SummaryCard({
             </div>
           ) : (
             <button
-              className="flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-all hover:bg-accent hover:text-foreground active:scale-95"
               onClick={onMarkAll}
             >
               <Lock className="h-3 w-3" />
@@ -199,7 +204,8 @@ export function SummaryCard({
               <CollapsibleTrigger className="flex w-full items-center gap-1.5 text-left text-xs hover:text-foreground/80">
                 <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${confidenceOpen ? 'rotate-90' : ''}`} />
                 <span className="font-semibold text-foreground">Extraction Confidence</span>
-                <span className="text-muted-foreground">{'\u00B7'} avg {avg}%</span>
+                <span className="mx-1 text-border">|</span>
+                <span className={`tabular-nums ${getAvgColor(avg)}`}>avg {avg}%</span>
               </CollapsibleTrigger>
             </div>
             <CollapsibleContent>

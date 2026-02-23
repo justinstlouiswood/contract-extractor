@@ -110,36 +110,50 @@ export default function App() {
 
     try {
       updateStep(0, 'in_progress', 'Checking file...')
-      await new Promise(r => setTimeout(r, 500))
-      updateStep(0, 'complete', 'File validated')
-
-      updateStep(1, 'in_progress', 'Reading PDF content...')
       abortControllerRef.current = new AbortController()
 
-      const response = await fetch('/upload', {
+      const response = await fetch('/upload-stream', {
         method: 'POST',
         body: formData,
         signal: abortControllerRef.current.signal,
       })
 
-      updateStep(1, 'complete', 'Text extracted')
-      updateStep(2, 'in_progress', 'Claude is analyzing the contract...')
-      await new Promise(r => setTimeout(r, 300))
-      updateStep(2, 'complete', 'Analysis complete')
-      updateStep(3, 'in_progress', 'Preparing summary...')
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ error: 'Upload failed' }))
+        throw new Error(errData.error || 'Upload failed')
+      }
 
-      const result = await response.json()
-      if (result.error) throw new Error(result.error)
+      const reader = response.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
 
-      updateStep(3, 'complete', 'Summary generated')
-      await new Promise(r => setTimeout(r, 500))
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
 
-      const savedRecord = saveContract(result)
-      setPdfId(result.pdf_id ?? null)
-      setCurrentContract(result)
-      setSelectedContractId(savedRecord.id)
-      setView('detail')
-      setFile(null)
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const payload = JSON.parse(line.slice(6))
+
+          if (payload.event === 'step') {
+            updateStep(payload.step, payload.status, payload.message)
+          } else if (payload.event === 'complete') {
+            const result = payload.result
+            const savedRecord = saveContract(result)
+            setPdfId(result.pdf_id ?? null)
+            setCurrentContract(result)
+            setSelectedContractId(savedRecord.id)
+            setView('detail')
+            setFile(null)
+          } else if (payload.event === 'error') {
+            throw new Error(payload.message)
+          }
+        }
+      }
     } catch (err) {
       if ((err as Error).name === 'AbortError') {
         setView('empty')
