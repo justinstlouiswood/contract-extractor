@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { formatCurrency, getHeatmapColor, getConfidenceFieldLabel } from '@/lib/contract-utils'
+import { formatCurrency, getHeatmapColor, getConfidenceFieldLabel, buildClipboardSummary, stripSourceTags } from '@/lib/contract-utils'
 import { EmailSection } from '@/components/distribution/email-section'
 import { SlackPanel } from '@/components/distribution/slack-panel'
 import { SheetsPanel } from '@/components/distribution/sheets-panel'
@@ -45,15 +45,17 @@ interface SummaryCardProps {
   gmailAuth: GmailAuth
   onGmailAuthClick: () => void
   onSendEmail: (result: { success: boolean }) => void
+  onCopyFeedback: (message: string) => void
 }
 
 export function SummaryCard({
   parsed_data, confidence,
   isUnlocked, verifiedCount, totalCategories, activeAction, onAction, onMarkAll,
   editedFields, extractedInfo,
-  gmailAuth, onGmailAuthClick, onSendEmail,
+  gmailAuth, onGmailAuthClick, onSendEmail, onCopyFeedback,
 }: SummaryCardProps) {
   const [confidenceOpen, setConfidenceOpen] = useState(false)
+  const [copyExpanded, setCopyExpanded] = useState(false)
 
   const currency = parsed_data.currency || 'CAD'
   const tcvNeedsReview = confidence?.total_contract_value !== undefined && confidence.total_contract_value < 85
@@ -85,6 +87,24 @@ export function SummaryCard({
 
     return { tiers: groups, avg: avgScore }
   }, [confidence])
+
+  async function handleCopy(mode: 'condensed' | 'full') {
+    const text = mode === 'condensed'
+      ? buildClipboardSummary(parsed_data, editedFields)
+      : stripSourceTags(extractedInfo)
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    onCopyFeedback(mode === 'condensed' ? 'Condensed summary copied' : 'Full text copied')
+    setCopyExpanded(false)
+  }
 
   return (
     <Card>
@@ -122,9 +142,20 @@ export function SummaryCard({
           </div>
           {isUnlocked ? (
             <div className="flex shrink-0 items-center gap-1.5">
-              <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={() => onAction('copy' as DistributionAction)}>
-                <Copy className="h-3 w-3" /> Copy
-              </Button>
+              {copyExpanded ? (
+                <>
+                  <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={() => { handleCopy('condensed'); }}>
+                    Condensed
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={() => { handleCopy('full'); }}>
+                    Full Text
+                  </Button>
+                </>
+              ) : (
+                <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={() => setCopyExpanded(true)}>
+                  <Copy className="h-3 w-3" /> Copy
+                </Button>
+              )}
               <Button
                 variant={activeAction === 'email' ? 'default' : 'outline'}
                 size="sm"

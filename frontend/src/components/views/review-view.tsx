@@ -6,7 +6,7 @@ import { RevenueChart } from '@/components/revenue-chart'
 import { PaymentTimeline } from '@/components/payment-timeline'
 import { ClauseTags } from '@/components/clause-tags'
 import { ExtractedTextDisplay } from '@/components/extracted-text-display'
-import { getVerifiableFields, getPageRef, buildClipboardSummary } from '@/lib/contract-utils'
+import { getVerifiableFields, getPageRef } from '@/lib/contract-utils'
 import type { ContractResult, GmailAuth, DistributionAction, VerificationCategory } from '@/types/contract'
 
 interface ReviewViewProps {
@@ -67,22 +67,7 @@ export function ReviewView({ data, gmailAuth, onGmailAuthClick, onSendEmail, onS
     if (pages.length > 0) onScrollToPage(pages[0])
   }
 
-  const handleDistributionAction = async (action: DistributionAction) => {
-    if (action === ('copy' as unknown)) {
-      const text = buildClipboardSummary(parsed_data, editedFields)
-      try {
-        await navigator.clipboard.writeText(text)
-      } catch {
-        const ta = document.createElement('textarea')
-        ta.value = text
-        document.body.appendChild(ta)
-        ta.select()
-        document.execCommand('copy')
-        document.body.removeChild(ta)
-      }
-      onCopyFeedback('Summary copied to clipboard')
-      return
-    }
+  const handleDistributionAction = (action: DistributionAction) => {
     setDistributionAction(action)
   }
 
@@ -114,6 +99,7 @@ export function ReviewView({ data, gmailAuth, onGmailAuthClick, onSendEmail, onS
         gmailAuth={gmailAuth}
         onGmailAuthClick={onGmailAuthClick}
         onSendEmail={onSendEmail}
+        onCopyFeedback={onCopyFeedback}
       />
 
       {contractFields.length > 0 && (
