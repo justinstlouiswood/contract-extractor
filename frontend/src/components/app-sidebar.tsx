@@ -206,7 +206,7 @@ export function AppSidebar({
                           variant={status === 'needs_review' ? 'warning' : 'extracted'}
                           className="ml-auto shrink-0 text-[10px]"
                         >
-                          {status === 'needs_review' ? 'Needs Review' : 'Extracted'}
+                          {status === 'needs_review' ? 'Review' : 'Extracted'}
                         </Badge>
                       </div>
                       {/* Line 2: Dollar amount + currency */}
