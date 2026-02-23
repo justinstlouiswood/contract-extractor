@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { FileText, Inbox, Upload, Archive } from 'lucide-react'
+import { FileText, Inbox, Upload, Archive, X } from 'lucide-react'
 import novistoLogo from '@/assets/novisto.jpg'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   selectedId: string | null
   processingFileName: string | null
   onSelectContract: (contract: ContractRecord) => void
+  onRemoveContract: (contractId: string) => void
   onUploadClick: () => void
   onDeselectContract: () => void
 }
@@ -58,6 +59,7 @@ export function AppSidebar({
   selectedId,
   processingFileName,
   onSelectContract,
+  onRemoveContract,
   onUploadClick,
   onDeselectContract,
   ...props
@@ -183,35 +185,45 @@ export function AppSidebar({
                 const isSelected = selectedId === contract.id
 
                 return (
-                  <button
+                  <div
                     key={contract.id}
-                    onClick={() => onSelectContract(contract)}
-                    className={`flex w-full flex-col items-start gap-1.5 border-b p-4 text-left text-sm transition-colors last:border-b-0 ${
+                    className={`group relative flex w-full border-b last:border-b-0 ${
                       isSelected
                         ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                         : 'hover:bg-sidebar-accent/50'
                     }`}
                   >
-                    <div className="flex w-full items-center gap-2">
-                      <span className="truncate font-medium">
-                        {contract.customer_name || 'Unknown Customer'}
-                      </span>
-                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                        {formatListDate(contract.date_processed)}
-                      </span>
-                    </div>
-                    <div className="flex w-full items-center gap-2">
-                      <span className="text-xs tabular-nums text-muted-foreground">
-                        {formatCurrency(contract.total_value)} {contract.currency}
-                      </span>
-                      <Badge
-                        variant={status === 'needs_review' ? 'warning' : 'extracted'}
-                        className="ml-auto text-[10px]"
-                      >
-                        {status === 'needs_review' ? 'Needs Review' : 'Extracted'}
-                      </Badge>
-                    </div>
-                  </button>
+                    <button
+                      onClick={() => onSelectContract(contract)}
+                      className="flex w-full flex-col items-start gap-1.5 p-4 text-left text-sm transition-colors"
+                    >
+                      <div className="flex w-full items-center gap-2">
+                        <span className="truncate font-medium">
+                          {contract.customer_name || 'Unknown Customer'}
+                        </span>
+                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                          {formatListDate(contract.date_processed)}
+                        </span>
+                      </div>
+                      <div className="flex w-full items-center gap-2">
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {formatCurrency(contract.total_value)} {contract.currency}
+                        </span>
+                        <Badge
+                          variant={status === 'needs_review' ? 'warning' : 'extracted'}
+                          className="ml-auto text-[10px]"
+                        >
+                          {status === 'needs_review' ? 'Needs Review' : 'Extracted'}
+                        </Badge>
+                      </div>
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onRemoveContract(contract.id) }}
+                      className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-sm opacity-0 transition-opacity hover:bg-sidebar-accent group-hover:opacity-100"
+                    >
+                      <X className="h-3 w-3 text-muted-foreground" />
+                    </button>
+                  </div>
                 )
               })}
             </SidebarGroupContent>

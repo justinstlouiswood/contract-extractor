@@ -17,7 +17,7 @@ import type { AppView, ContractResult, ContractRecord, GmailAuth, ProcessingStep
 
 export default function App() {
   useTheme()
-  const { contracts: recentContracts, save: saveContract } = useRecentContracts()
+  const { contracts: recentContracts, save: saveContract, remove: removeContract } = useRecentContracts()
 
   const [view, setView] = useState<AppView>('empty')
   const [currentContract, setCurrentContract] = useState<ContractResult | null>(null)
@@ -192,6 +192,13 @@ export default function App() {
     setView('empty')
   }
 
+  const handleRemoveContract = (contractId: string) => {
+    removeContract(contractId)
+    if (selectedContractId === contractId) {
+      handleDeselectContract()
+    }
+  }
+
   const handlePdfUnavailable = useCallback(() => {
     setPdfExpired(true)
     setScrollToPage(null)
@@ -211,6 +218,7 @@ export default function App() {
         selectedId={selectedContractId}
         processingFileName={view === 'processing' ? (file?.name || null) : null}
         onSelectContract={handleSelectContract}
+        onRemoveContract={handleRemoveContract}
         onUploadClick={() => setUploadDialogOpen(true)}
         onDeselectContract={handleDeselectContract}
       />

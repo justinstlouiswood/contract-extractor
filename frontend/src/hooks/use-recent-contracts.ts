@@ -50,10 +50,16 @@ export function useRecentContracts() {
     return record
   }, [])
 
+  const remove = useCallback((id: string) => {
+    const history = readContracts().filter(c => c.id !== id)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history))
+    setContracts([...history])
+  }, [])
+
   const clear = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY)
     setContracts([])
   }, [])
 
-  return { contracts, save, clear }
+  return { contracts, save, remove, clear }
 }
