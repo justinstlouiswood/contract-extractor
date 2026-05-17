@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { ZoomIn, ZoomOut, FileX } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { ChevronLeft, ChevronRight, FileText, FileX } from 'lucide-react'
 
 // Dynamic import of pdfjs-dist — keeps ~1MB out of the main bundle
 type PdfjsLib = typeof import('pdfjs-dist')
@@ -47,10 +46,17 @@ interface PDFViewerPanelProps {
   pdfId: string | null
   scrollToPage: number | null
   onPdfUnavailable?: () => void
+  filename?: string
 }
 
-export function PDFViewerPanel({ pdfId, scrollToPage: targetPage, onPdfUnavailable }: PDFViewerPanelProps) {
+export function PDFViewerPanel({
+  pdfId,
+  scrollToPage: targetPage,
+  onPdfUnavailable,
+  filename,
+}: PDFViewerPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const pageWrappersRef = useRef<Record<number, HTMLDivElement | null>>({})
   const canvasRefs = useRef<Record<number, HTMLCanvasElement | null>>({})
   const textLayerRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const renderingRef = useRef<Record<number, boolean>>({})
@@ -58,14 +64,16 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage, onPdfUnavailab
   const renderGenRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
   const observerRef = useRef<IntersectionObserver | null>(null)
+  const programmaticRef = useRef(false)
+  const programmaticTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null)
   const [totalPages, setTotalPages] = useState(0)
-  const [scale, setScale] = useState(1.75)
+  const [currentPage, setCurrentPage] = useState(1)
   const [pdfStatus, setPdfStatus] = useState<PdfStatus>('idle')
   const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null)
+  const scale = 1.5
 
   const loadPdf = useCallback(async (id: string, signal: AbortSignal) => {
-    // Check module-level cache first
     const cached = getCachedPdf(id)
     if (cached) {
       setPdfDoc(cached)
@@ -74,7 +82,6 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage, onPdfUnavailab
       return
     }
 
-    // Step 1: Pre-flight check — does the file exist on disk?
     setPdfStatus('checking')
     try {
       const checkResp = await fetch(`/pdf/${id}/check`, { signal })
@@ -87,16 +94,15 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage, onPdfUnavailab
             return
           }
         } catch {
-          // Response wasn't JSON — not our endpoint, proceed optimistically
+          // not JSON; proceed optimistically
         }
       }
-    } catch (err) {
+    } catch {
       if (signal.aborted) return
     }
 
     if (signal.aborted) return
 
-    // Step 2: Load pdfjs library (dynamic import, cached after first load)
     setPdfStatus('loading')
     let lib: PdfjsLib
     try {
@@ -109,7 +115,6 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage, onPdfUnavailab
 
     if (signal.aborted) return
 
-    // Step 3: Load the PDF document
     try {
       const pdf = await lib.getDocument(`/pdf/${id}`).promise
       if (signal.aborted) return
@@ -128,9 +133,9 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage, onPdfUnavailab
       setPdfStatus('idle')
       return
     }
-
     setPdfDoc(null)
     setTotalPages(0)
+    setCurrentPage(1)
     setPageDimensions(null)
     renderGenRef.current += 1
     renderedPagesRef.current.clear()
@@ -190,7 +195,7 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage, onPdfUnavailab
         textLayerDiv.style.width = viewport.width + 'px'
         textLayerDiv.style.height = viewport.height + 'px'
 
-        textContent.items.forEach(item => {
+        textContent.items.forEach((item) => {
           if (!('str' in item)) return
           const span = document.createElement('span')
           const tx = lib.Util.transform(viewport.transform, item.transform)
@@ -212,16 +217,14 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage, onPdfUnavailab
     }
   }, [pdfDoc, scale])
 
-  // Compute default page dimensions from page 1 for placeholders
   useEffect(() => {
     if (!pdfDoc || totalPages === 0) return
-    pdfDoc.getPage(1).then(page => {
+    pdfDoc.getPage(1).then((page) => {
       const vp = page.getViewport({ scale })
       setPageDimensions({ width: vp.width, height: vp.height })
     })
   }, [pdfDoc, totalPages, scale])
 
-  // IntersectionObserver-based lazy rendering
   useEffect(() => {
     if (!pdfDoc || totalPages === 0 || !containerRef.current || !pageDimensions) return
 
@@ -230,20 +233,19 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage, onPdfUnavailab
     renderingRef.current = {}
     renderedPagesRef.current.clear()
 
-    // Render page 1 immediately for fast first paint
     const timer = setTimeout(() => {
       renderedPagesRef.current.add(1)
       renderPage(1, gen)
     }, 50)
 
-    // Set up observer for remaining pages
     observerRef.current?.disconnect()
     observerRef.current = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (!entry.isIntersecting) continue
           const pageNum = parseInt(
-            (entry.target as HTMLElement).dataset.pageNum || '0', 10
+            (entry.target as HTMLElement).dataset.pageNum || '0',
+            10,
           )
           if (pageNum > 0 && !renderedPagesRef.current.has(pageNum)) {
             renderedPagesRef.current.add(pageNum)
@@ -254,12 +256,11 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage, onPdfUnavailab
       {
         root: containerRef.current,
         rootMargin: '200px 0px',
-      }
+      },
     )
 
-    // Observe all page wrappers
     const wrappers = containerRef.current.querySelectorAll('[data-page-num]')
-    wrappers.forEach(el => observerRef.current!.observe(el))
+    wrappers.forEach((el) => observerRef.current!.observe(el))
 
     return () => {
       clearTimeout(timer)
@@ -267,100 +268,154 @@ export function PDFViewerPanel({ pdfId, scrollToPage: targetPage, onPdfUnavailab
     }
   }, [pdfDoc, scale, totalPages, pageDimensions, renderPage])
 
-  // Scroll-to-page: also pre-render the target page
-  useEffect(() => {
-    if (targetPage && containerRef.current) {
-      // Pre-render the target page so it's not blank when scrolled into view
-      if (!renderedPagesRef.current.has(targetPage)) {
-        renderedPagesRef.current.add(targetPage)
-        renderPage(targetPage, renderGenRef.current)
-      }
-      const target = containerRef.current.querySelector(`[data-page-num="${targetPage}"]`)
-      if (target) {
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }
+  const scrollToPageNumber = useCallback((pageNum: number) => {
+    const el = pageWrappersRef.current[pageNum]
+    const c = containerRef.current
+    if (!el || !c) return
+
+    if (!renderedPagesRef.current.has(pageNum)) {
+      renderedPagesRef.current.add(pageNum)
+      renderPage(pageNum, renderGenRef.current)
     }
-  }, [targetPage, renderPage])
+
+    programmaticRef.current = true
+    if (programmaticTimerRef.current) clearTimeout(programmaticTimerRef.current)
+    const top = el.offsetTop - 16
+    c.scrollTo({ top, behavior: 'smooth' })
+    setCurrentPage(pageNum)
+    programmaticTimerRef.current = setTimeout(() => {
+      programmaticRef.current = false
+    }, 900)
+  }, [renderPage])
+
+  useEffect(() => {
+    if (targetPage) scrollToPageNumber(targetPage)
+  }, [targetPage, scrollToPageNumber])
+
+  const handleScroll = useCallback(() => {
+    if (programmaticRef.current) return
+    const c = containerRef.current
+    if (!c || totalPages === 0) return
+
+    requestAnimationFrame(() => {
+      const scrollTop = c.scrollTop
+      let closest = currentPage
+      let minDist = Infinity
+      for (let p = 1; p <= totalPages; p++) {
+        const el = pageWrappersRef.current[p]
+        if (!el) continue
+        const dist = Math.abs(el.offsetTop - scrollTop - 24)
+        if (dist < minDist) {
+          minDist = dist
+          closest = p
+        }
+      }
+      if (closest !== currentPage) setCurrentPage(closest)
+    })
+  }, [currentPage, totalPages])
+
+  const displayName = filename || (pdfId ? `${pdfId.slice(0, 8)}.pdf` : 'document.pdf')
 
   return (
-    <div className="flex h-full flex-col bg-background p-3 pl-1.5">
-      <div className="flex flex-1 flex-col overflow-hidden rounded-sm border border-border bg-card shadow-card">
-        <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
-          <span className="text-sm font-semibold text-muted-foreground">Source Document</span>
-          {pdfId && (
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setScale(s => Math.max(0.5, s - 0.25))}>
-                <ZoomOut className="h-3.5 w-3.5" />
-              </Button>
-              <span className="text-xs text-muted-foreground">{Math.round(scale * 100)}%</span>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setScale(s => Math.min(2.5, s + 0.25))}>
-                <ZoomIn className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          )}
+    <div className="pdf-col">
+      <div className="pdf-toolbar">
+        <div className="pdf-toolbar-left">
+          <FileText size={13} strokeWidth={1.5} className="text-text-muted" />
+          <span className="pdf-toolbar-title">{displayName}</span>
         </div>
+        {pdfStatus === 'ready' && totalPages > 0 && (
+          <div className="pdf-toolbar-pager">
+            <button
+              type="button"
+              className="pdf-pager-btn"
+              onClick={() => scrollToPageNumber(Math.max(1, currentPage - 1))}
+              disabled={currentPage <= 1}
+              aria-label="Previous page"
+            >
+              <ChevronLeft size={11} />
+            </button>
+            <span className="text-text font-medium tabular-nums">{currentPage}</span>
+            <span className="text-text-muted tabular-nums">/ {totalPages}</span>
+            <button
+              type="button"
+              className="pdf-pager-btn"
+              onClick={() => scrollToPageNumber(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage >= totalPages}
+              aria-label="Next page"
+            >
+              <ChevronRight size={11} />
+            </button>
+          </div>
+        )}
+      </div>
 
-        <div className="flex-1 overflow-auto" ref={containerRef}>
-          {!pdfId && (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-              <FileX className="h-8 w-8 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">Source document expired</span>
-              <span className="text-sm text-muted-foreground">
-                The PDF file is no longer available on the server.
-                Re-upload the document to view it alongside the extracted data.
-              </span>
-            </div>
-          )}
-          {(pdfStatus === 'checking' || pdfStatus === 'loading') && (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                {pdfStatus === 'checking' ? 'Checking document availability...' : 'Loading document...'}
-              </span>
-            </div>
-          )}
+      <div className="pdf-scroll" ref={containerRef} onScroll={handleScroll}>
+        {!pdfId && (
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+            <FileX className="h-8 w-8 text-text-muted" />
+            <span className="text-sm font-medium text-text">Source document expired</span>
+            <span className="text-[12px] text-text-muted">
+              The PDF file is no longer available on the server. Re-upload the document to view it alongside the extracted data.
+            </span>
+          </div>
+        )}
 
-          {pdfStatus === 'not_found' && (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-              <FileX className="h-8 w-8 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">Source document expired</span>
-              <span className="text-sm text-muted-foreground">
-                The PDF file is no longer available on the server.
-                Re-upload the document to view it alongside the extracted data.
-              </span>
-            </div>
-          )}
+        {(pdfStatus === 'checking' || pdfStatus === 'loading') && (
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-text" />
+            <span className="text-[12px] text-text-muted">
+              {pdfStatus === 'checking' ? 'Checking document availability…' : 'Loading document…'}
+            </span>
+          </div>
+        )}
 
-          {pdfStatus === 'load_error' && (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-              <span className="text-sm text-muted-foreground">
-                Failed to load the document. This may be a temporary issue.
-              </span>
-              <Button variant="outline" size="sm" className="h-8 text-sm" onClick={handleRetry}>
-                Retry
-              </Button>
-            </div>
-          )}
+        {pdfStatus === 'not_found' && (
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+            <FileX className="h-8 w-8 text-text-muted" />
+            <span className="text-sm font-medium text-text">Source document expired</span>
+            <span className="text-[12px] text-text-muted">
+              The PDF file is no longer available on the server. Re-upload the document to view it alongside the extracted data.
+            </span>
+          </div>
+        )}
 
-          {pdfStatus === 'ready' && (
-            <div className="flex flex-col items-center gap-2 p-2">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
-                <div
-                  key={pageNum}
-                  data-page-num={pageNum}
-                  className="pdf-page-wrapper relative overflow-hidden rounded-sm border border-border/50"
-                  style={pageDimensions ? { minHeight: pageDimensions.height, width: pageDimensions.width } : undefined}
-                >
-                  <canvas ref={el => { canvasRefs.current[pageNum] = el }} className="block max-w-full" />
-                  <div ref={el => { textLayerRefs.current[pageNum] = el }} className="absolute inset-0 overflow-hidden" />
-                  <div className="py-0.5 text-center text-xs text-muted-foreground">
-                    {pageNum} of {totalPages}
-                  </div>
-                </div>
-              ))}
+        {pdfStatus === 'load_error' && (
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+            <span className="text-[12px] text-text-muted">
+              Failed to load the document. This may be a temporary issue.
+            </span>
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="rounded-md border border-btn-border bg-bg px-3 py-1.5 text-[12px] text-text-default shadow-btn hover:shadow-btn-hover"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {pdfStatus === 'ready' &&
+          Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+            <div
+              key={pageNum}
+              data-page-num={pageNum}
+              ref={(el) => { pageWrappersRef.current[pageNum] = el }}
+              className={`pdf-page${pageNum === currentPage ? ' is-current' : ''}`}
+              style={pageDimensions ? { minHeight: pageDimensions.height } : undefined}
+            >
+              <canvas
+                ref={(el) => { canvasRefs.current[pageNum] = el }}
+                className="block max-w-full"
+              />
+              <div
+                ref={(el) => { textLayerRefs.current[pageNum] = el }}
+                className="absolute inset-0 overflow-hidden"
+              />
+              <div className="py-0.5 text-center text-[10px] text-text-muted tabular-nums">
+                {pageNum} / {totalPages}
+              </div>
             </div>
-          )}
-        </div>
+          ))}
       </div>
     </div>
   )

@@ -1,6 +1,4 @@
 import { FileText, Check, Square, AlertCircle } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import type { ProcessingStep } from '@/types/contract'
 
 interface ProcessingViewProps {
@@ -16,32 +14,65 @@ const stepDescriptions: Record<string, string> = {
   'Generating summary': 'Building a structured summary with confidence scores for each field.',
 }
 
-function ProgressStep({ number, label, status, message }: { number: number; label: string; status: string; message: string }) {
+function ProgressStep({
+  number,
+  label,
+  status,
+  message,
+}: {
+  number: number
+  label: string
+  status: string
+  message: string
+}) {
   const description = stepDescriptions[label] || ''
+
+  const indicatorCls =
+    status === 'complete'
+      ? 'bg-accent text-accent-fg border border-btn-border'
+      : status === 'error'
+        ? 'border border-danger-border bg-danger-bg text-danger-text'
+        : status === 'in_progress'
+          ? 'border border-text text-text'
+          : 'border border-border-subtle text-text-muted'
 
   return (
     <div className="flex items-start gap-4 py-3.5">
-      <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[13px] font-semibold ${
-        status === 'complete' ? 'bg-foreground text-background' :
-        status === 'error' ? 'border border-danger-ring bg-danger-bg text-danger-text' :
-        status === 'in_progress' ? 'border border-foreground text-foreground' :
-        'border border-border text-muted-foreground'
-      }`}>
-        {status === 'complete' ? <Check className="h-4 w-4" /> :
-         status === 'error' ? <AlertCircle className="h-4 w-4" /> :
-         number}
+      <div
+        className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[13px] font-semibold ${indicatorCls}`}
+      >
+        {status === 'complete' ? (
+          <Check className="h-4 w-4" />
+        ) : status === 'error' ? (
+          <AlertCircle className="h-4 w-4" />
+        ) : (
+          number
+        )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className={`text-sm font-medium ${status === 'error' ? 'text-danger-text' : ''}`}>{label}</div>
-        <div className={`mt-0.5 text-xs ${status === 'error' ? 'text-danger-text' : 'text-muted-foreground'}`}>{
-          status === 'in_progress' && message ? message :
-          status === 'complete' && message ? message :
-          status === 'error' && message ? message :
-          description
-        }</div>
+        <div
+          className={`text-sm font-medium ${
+            status === 'error' ? 'text-danger-text' : 'text-text'
+          }`}
+        >
+          {label}
+        </div>
+        <div
+          className={`mt-0.5 text-[12px] ${
+            status === 'error' ? 'text-danger-text' : 'text-text-muted'
+          }`}
+        >
+          {status === 'in_progress' && message
+            ? message
+            : status === 'complete' && message
+              ? message
+              : status === 'error' && message
+                ? message
+                : description}
+        </div>
         {status === 'in_progress' && (
-          <div className="mt-2 h-1 overflow-hidden rounded bg-muted">
-            <div className="h-full w-1/3 animate-pulse rounded bg-foreground" />
+          <div className="mt-2 h-1 overflow-hidden rounded-[2px] bg-bg-active">
+            <div className="h-full w-1/3 animate-pulse rounded-[2px] bg-text" />
           </div>
         )}
       </div>
@@ -50,50 +81,62 @@ function ProgressStep({ number, label, status, message }: { number: number; labe
 }
 
 export function ProcessingView({ filename, steps, onStop }: ProcessingViewProps) {
-  const completedSteps = steps.filter(s => s.status === 'complete').length
-  const hasError = steps.some(s => s.status === 'error')
+  const completedSteps = steps.filter((s) => s.status === 'complete').length
+  const hasError = steps.some((s) => s.status === 'error')
   const progress = (completedSteps / steps.length) * 100
 
   return (
-    <div className="flex h-full items-center justify-center bg-background px-6">
+    <div className="flex h-full flex-1 items-center justify-center bg-bg-pane px-6">
       <div className="w-full max-w-xl">
-        {/* Filename header */}
         <div className="mb-5 flex items-center gap-2.5">
-          <FileText className="h-4.5 w-4.5 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">{filename}</span>
+          <FileText className="h-4 w-4 text-text-muted" strokeWidth={1.5} />
+          <span className="text-[12px] text-text-muted">{filename}</span>
         </div>
 
-        {/* Steps */}
-        <div className="divide-y divide-border">
+        <div className="divide-y divide-border-subtle">
           {steps.map((step, index) => (
-            <ProgressStep key={index} number={index + 1} label={step.label} status={step.status} message={step.message} />
+            <ProgressStep
+              key={index}
+              number={index + 1}
+              label={step.label}
+              status={step.status}
+              message={step.message}
+            />
           ))}
         </div>
 
-        {/* Overall progress */}
         <div className="mt-6 space-y-2">
           <div className="flex items-center justify-between">
-            <span className={`text-xs ${hasError ? 'text-danger-text' : 'text-muted-foreground'}`}>
+            <span
+              className={`text-[11px] ${
+                hasError ? 'text-danger-text' : 'text-text-muted'
+              }`}
+            >
               {hasError ? 'Processing failed' : 'Overall Progress'}
             </span>
-            <span className={`text-xs ${hasError ? 'text-danger-text' : 'text-muted-foreground'}`}>
+            <span
+              className={`text-[11px] tabular-nums ${
+                hasError ? 'text-danger-text' : 'text-text-muted'
+              }`}
+            >
               {hasError ? '' : `${Math.round(progress)}%`}
             </span>
           </div>
-          <Progress value={progress} className="h-1.5" />
+          <div className="progress-track">
+            <div className="progress-fill" style={{ width: `${progress}%` }} />
+          </div>
         </div>
 
         {onStop && (
           <div className="mt-4 flex justify-center">
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
+              type="button"
               onClick={onStop}
-              className="gap-1.5 text-xs text-danger-text hover:text-danger-text"
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-danger-text hover:bg-danger-bg"
             >
               <Square className="h-3 w-3" />
               Cancel
-            </Button>
+            </button>
           </div>
         )}
       </div>

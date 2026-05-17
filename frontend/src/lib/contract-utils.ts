@@ -139,13 +139,13 @@ export function stripSourceTags(text: string): string {
 
 export function getTagColor(signal: string): string {
   const colors: Record<string, string> = {
-    'EXPLICIT': 'bg-tag-explicit-bg text-tag-explicit-text',
-    'INFERRED': 'bg-tag-inferred-bg text-tag-inferred-text',
-    'PARTIAL': 'bg-tag-inferred-bg text-tag-inferred-text',
-    'MULTIPLE': 'bg-tag-notfound-bg text-tag-notfound-text',
-    'NOT_FOUND': 'bg-tag-notfound-bg text-tag-notfound-text',
+    'EXPLICIT': 'bg-success-bg text-success-text border border-success-border',
+    'INFERRED': 'bg-bg-muted text-text-muted border border-border-subtle',
+    'PARTIAL':  'bg-warning-bg text-warning-text border border-warning-border',
+    'MULTIPLE': 'bg-bg-muted text-text-muted border border-border-subtle',
+    'NOT_FOUND':'bg-bg-muted text-text-muted/70 border border-border-subtle',
   }
-  return colors[signal] || 'bg-muted text-muted-foreground/70'
+  return colors[signal] || 'bg-bg-muted text-text-muted border border-border-subtle'
 }
 
 // Export helpers

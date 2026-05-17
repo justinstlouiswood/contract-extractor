@@ -5,31 +5,37 @@ import { Slot } from "radix-ui"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex items-center justify-center rounded-md border border-transparent px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden",
+  "inline-flex items-center justify-center rounded-[4px] border border-transparent px-[7px] py-[2px] text-[10px] font-semibold tracking-[0.01em] w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/30 focus-visible:ring-[2px] transition-[color,box-shadow] overflow-hidden",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
+        default: "bg-accent text-accent-fg",
         secondary:
-          "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+          "bg-bg-muted text-text-muted border-border-subtle",
         destructive:
-          "bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20",
+          "bg-danger-bg text-danger-text border-danger-border",
         outline:
-          "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 [a&]:hover:underline",
+          "border-border-subtle text-text-default",
+        ghost: "text-text-muted",
+        link: "text-text underline-offset-4 [a&]:hover:underline",
         success:
-          "bg-success-bg text-success-text border-success-ring",
+          "bg-success-bg text-success-text border-success-border",
+        approved:
+          "bg-success-bg text-success-text border-success-border",
         warning:
-          "bg-danger-bg text-danger-text border-danger-ring",
+          "bg-warning-bg text-warning-text border-warning-border",
         danger:
-          "bg-danger-bg text-danger-text border-danger-ring",
+          "bg-danger-bg text-danger-text border-danger-border",
         info:
-          "bg-muted text-muted-foreground border-border",
+          "bg-info-bg text-info-text border-info-border",
         extracted:
-          "rounded-md bg-extracted-bg text-extracted-text border-extracted-border",
+          "bg-success-bg text-success-text border-success-border",
         review:
-          "bg-review-bg text-review-text border-review-border",
+          "bg-warning-bg text-warning-text border-warning-border",
+        pending:
+          "bg-info-bg text-info-text border-info-border",
+        neutral:
+          "bg-bg-muted text-text-muted border-border-subtle",
       },
     },
     defaultVariants: {

@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { AlertCircle, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
-import { Separator } from '@/components/ui/separator'
 import { AppSidebar } from '@/components/app-sidebar'
+import { PaneHeader } from '@/components/pane-header'
 import { UploadDialog } from '@/components/upload-dialog'
 import { EmptyState } from '@/components/empty-state'
 import { CopyFeedback } from '@/components/copy-feedback'
@@ -108,7 +106,6 @@ export default function App() {
       setSteps(prev => prev.map((s, i) => i === stepIndex ? { ...s, status, message } : s))
     }
 
-    // Inactivity timeout: if no SSE event arrives within this window, assume failure
     const INACTIVITY_TIMEOUT_MS = 90_000
 
     try {
@@ -132,7 +129,6 @@ export default function App() {
       let lastEventTime = Date.now()
 
       while (true) {
-        // Race between the next chunk and an inactivity timeout
         const elapsed = Date.now() - lastEventTime
         const remaining = Math.max(INACTIVITY_TIMEOUT_MS - elapsed, 1000)
 
@@ -176,7 +172,6 @@ export default function App() {
         return
       }
       const errorMessage = (err as Error).message || 'An error occurred during processing'
-      // Mark the currently in-progress step as errored so user sees which step failed
       setSteps(prev => prev.map(s =>
         s.status === 'in_progress' ? { ...s, status: 'error' as const, message: errorMessage } : s
       ))
@@ -243,73 +238,76 @@ export default function App() {
 
   const showPdf = view === 'detail' && (pdfId || pdfExpired)
 
+  const breadcrumbCurrent =
+    view === 'detail' && currentContract
+      ? (currentContract.parsed_data.customer_name || 'Contract Review')
+      : view === 'processing'
+        ? (file?.name || 'document.pdf')
+        : null
+
   return (
-    <SidebarProvider>
-      <AppSidebar
-        contracts={recentContracts}
-        selectedId={selectedContractId}
-        processingFileName={view === 'processing' ? (file?.name || null) : null}
-        onSelectContract={handleSelectContract}
-        onRemoveContract={handleRemoveContract}
-        onUploadClick={() => setUploadDialogOpen(true)}
-        onDeselectContract={handleDeselectContract}
-      />
-      <SidebarInset className="h-screen overflow-hidden">
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
-          <span className="text-sm font-medium">
-            {view === 'empty' && 'MSA Extraction Machine'}
-            {view === 'processing' && `Processing: ${file?.name || 'document.pdf'}`}
-            {view === 'detail' && currentContract && (currentContract.parsed_data.customer_name || 'Contract Review')}
-          </span>
-        </header>
+    <>
+      <div className="shell">
+          <AppSidebar
+            contracts={recentContracts}
+            selectedId={selectedContractId}
+            processingFileName={view === 'processing' ? (file?.name || null) : null}
+            onSelectContract={handleSelectContract}
+            onRemoveContract={handleRemoveContract}
+            onCancelProcessing={handleStop}
+            onUploadClick={() => setUploadDialogOpen(true)}
+            onDeselectContract={handleDeselectContract}
+          />
+          <main className="pane">
+            <PaneHeader breadcrumbCurrent={breadcrumbCurrent} />
 
-        {error && (
-          <div className="mx-4 mt-3 flex items-center gap-2 rounded-sm border border-danger-ring bg-danger-bg px-3 py-2 text-xs text-danger-text">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-            <span className="flex-1">{error}</span>
-            <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setError(null)}>
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
-        )}
-
-        <div className="flex flex-1 overflow-hidden">
-          {view === 'empty' && (
-            <div className="w-full">
-              <EmptyState onUpload={() => setUploadDialogOpen(true)} />
-            </div>
-          )}
-
-          {view === 'processing' && (
-            <div className="w-full">
-              <ProcessingView filename={file?.name || 'document.pdf'} steps={steps} onStop={handleStop} />
-            </div>
-          )}
-
-          {view === 'detail' && currentContract && (
-            <>
-              <div className={`overflow-auto ${showPdf ? 'w-1/2 min-w-0' : 'w-full'}`}>
-                <ReviewView
-                  data={currentContract}
-                  pdfId={pdfId}
-                  gmailAuth={gmailAuth}
-                  onGmailAuthClick={handleGmailAuthClick}
-                  onSendEmail={handleSendEmail}
-                  onScrollToPage={handleScrollToPage}
-                  onCopyFeedback={handleCopyFeedback}
-                />
+            {error && (
+              <div className="mx-5 mt-3 flex items-center gap-2 rounded-md border border-danger-border bg-danger-bg px-3 py-2 text-[12px] text-danger-text">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                <span className="flex-1">{error}</span>
+                <button
+                  type="button"
+                  onClick={() => setError(null)}
+                  className="icon-btn h-5 w-5"
+                  aria-label="Dismiss error"
+                >
+                  <X className="h-3 w-3" />
+                </button>
               </div>
-              {showPdf && (
-                <div className="w-1/2 min-w-0 shrink-0">
-                  <PDFViewerPanel pdfId={pdfId} scrollToPage={scrollToPage} onPdfUnavailable={handlePdfUnavailable} />
+            )}
+
+            {view === 'empty' && (
+              <EmptyState onUpload={() => setUploadDialogOpen(true)} />
+            )}
+
+            {view === 'processing' && (
+              <ProcessingView filename={file?.name || 'document.pdf'} steps={steps} onStop={handleStop} />
+            )}
+
+            {view === 'detail' && currentContract && (
+              <div className="pane-split">
+                <div className="extract-col">
+                  <ReviewView
+                    data={currentContract}
+                    pdfId={pdfId}
+                    gmailAuth={gmailAuth}
+                    onGmailAuthClick={handleGmailAuthClick}
+                    onSendEmail={handleSendEmail}
+                    onScrollToPage={handleScrollToPage}
+                    onCopyFeedback={handleCopyFeedback}
+                  />
                 </div>
-              )}
-            </>
-          )}
-        </div>
-      </SidebarInset>
+                {showPdf && (
+                  <PDFViewerPanel
+                    pdfId={pdfId}
+                    scrollToPage={scrollToPage}
+                    onPdfUnavailable={handlePdfUnavailable}
+                  />
+                )}
+              </div>
+            )}
+          </main>
+      </div>
 
       <UploadDialog
         open={uploadDialogOpen}
@@ -327,6 +325,6 @@ export default function App() {
       )}
 
       <CopyFeedback show={copyFeedback.show} message={copyFeedback.message} />
-    </SidebarProvider>
+    </>
   )
 }

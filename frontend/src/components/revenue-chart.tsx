@@ -1,5 +1,4 @@
-import { useMemo } from 'react'
-import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, ComposedChart } from 'recharts'
+import { useEffect, useState } from 'react'
 import { formatCurrency } from '@/lib/contract-utils'
 import type { AnnualFee } from '@/types/contract'
 
@@ -9,180 +8,93 @@ interface RevenueChartProps {
   currency?: string
 }
 
-interface TooltipPayloadEntry {
-  name?: string
-  value?: number
-  dataKey?: string
-}
+const COLORS = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)']
 
-function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipPayloadEntry[]; label?: string }) {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="rounded-sm border border-border bg-card px-3 py-2 shadow-float">
-      <p className="mb-1 text-sm font-semibold">{label}</p>
-      {payload.map((entry: TooltipPayloadEntry, idx: number) => (
-        <p key={idx} className="text-sm text-muted-foreground">
-          {entry.name}: {formatCurrency(entry.value || 0)}
-        </p>
-      ))}
-    </div>
-  )
-}
+export function RevenueChart({ annualFees, currency }: RevenueChartProps) {
+  const fees = (annualFees || []).filter((f) => f.amount > 0)
+  const total = fees.reduce((acc, f) => acc + f.amount, 0)
+  const [animated, setAnimated] = useState(false)
 
-// Custom label to show escalation % above each bar with anchor line
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function EscalationLabel(props: any) {
-  const { x, y, width, index, data } = props
-  if (index === 0 || !data || !data[index] || !data[index - 1]) return null
-  const prev = data[index - 1].annual
-  const curr = data[index].annual
-  if (!prev || prev === 0) return null
-  const pct = ((curr - prev) / prev) * 100
-  if (pct === 0) return null
+  const feeKey = fees.map((f) => `${f.year}:${f.amount}`).join('|')
 
-  const cx = x + (width || 0) / 2
+  useEffect(() => {
+    setAnimated(false)
+    const t = setTimeout(() => setAnimated(true), 50)
+    return () => clearTimeout(t)
+  }, [feeKey])
+
+  if (fees.length === 0 || total === 0) return null
 
   return (
-    <g>
-      <line
-        x1={cx}
-        y1={y - 10}
-        x2={cx}
-        y2={y}
-        className="stroke-muted-foreground"
-        strokeWidth={1}
-      />
-      <text
-        x={cx}
-        y={y - 18}
-        textAnchor="middle"
-        className="fill-foreground"
-        style={{ fontSize: 10, fontWeight: 600, fontFamily: "'Inter', sans-serif" }}
-      >
-        {pct > 0 ? '+' : ''}{pct.toFixed(1)}%
-      </text>
-    </g>
-  )
-}
-
-function useChartColors() {
-  return useMemo(() => {
-    const style = getComputedStyle(document.documentElement)
-    const moss = style.getPropertyValue('--moss').trim()
-    const sage = style.getPropertyValue('--sage').trim()
-    return {
-      mossColor: moss,
-      sageColor: sage,
-      mossFill: moss,
-      sageFill: sage,
-      cumulativeColor: '#5EAFC0',
-    }
-  }, [])
-}
-
-export function RevenueChart({ annualFees, onboardingFee, currency = 'CAD' }: RevenueChartProps) {
-  if (!annualFees || annualFees.length === 0) return null
-
-  const { mossColor, mossFill, sageFill, cumulativeColor } = useChartColors()
-
-  let cumulative = onboardingFee && onboardingFee > 0 ? onboardingFee : 0
-  const data = annualFees.map((fee, i) => {
-    cumulative += fee.amount
-    return {
-      name: `Year ${fee.year}`,
-      annual: fee.amount,
-      onboarding: i === 0 && onboardingFee && onboardingFee > 0 ? onboardingFee : 0,
-      cumulative,
-    }
-  })
-
-  const hasOnboarding = onboardingFee && onboardingFee > 0
-
-  return (
-    <div className="mt-3 space-y-2 px-1">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-sm bg-moss" />
-          <span className="text-xs text-muted-foreground">Annual Fee</span>
-        </div>
-        {hasOnboarding && (
-          <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded-sm bg-sage" />
-            <span className="text-xs text-muted-foreground">Onboarding</span>
-          </div>
-        )}
-        <div className="flex items-center gap-1.5">
-          <div className="h-px w-4 border-t border-dashed" style={{ borderColor: '#5EAFC0' }} />
-          <span className="text-xs text-muted-foreground">Cumulative TCV</span>
-        </div>
+    <div className="chart-section">
+      <div className="mb-[10px] flex items-baseline justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-text-muted">
+          Annual Fee Breakdown
+        </span>
+        <span className="text-[12px] font-semibold text-text tabular-nums">
+          {formatCurrency(total)}{' '}
+          <span className="text-[11px] font-normal text-text-muted">{currency}</span>
+        </span>
       </div>
-      <div className="h-56" style={{ overflow: 'visible', outline: 'none', boxShadow: 'none' }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 40, right: 30, left: 8, bottom: 2 }} style={{ outline: 'none' }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
-            <XAxis
-              dataKey="name"
-              tick={{ fontSize: 11 }}
-              tickLine={false}
-              axisLine={false}
-              className="fill-foreground"
-            />
-            <YAxis
-              yAxisId="left"
-              tick={{ fontSize: 11 }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v: number) => '$' + v.toLocaleString()}
-              className="fill-foreground"
-            />
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              tick={{ fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v: number) => '$' + (v / 1000).toFixed(0) + 'k'}
-              className="fill-foreground"
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar
-              yAxisId="left"
-              dataKey="annual"
-              name={`Annual Fee (${currency})`}
-              fill={mossFill}
-              stroke={mossColor}
-              strokeWidth={1}
-              radius={[2, 2, 0, 0]}
-              label={<EscalationLabel data={data} />}
-              style={{ outline: 'none' }}
-              cursor="default"
-            />
-            {hasOnboarding && (
-              <Bar
-                yAxisId="left"
-                dataKey="onboarding"
-                name={`Onboarding (${currency})`}
-                fill={sageFill}
-                stroke={mossColor}
-                strokeWidth={1}
-                radius={[2, 2, 0, 0]}
-                style={{ outline: 'none' }}
-                cursor="default"
+
+      <div
+        className="relative flex h-[22px] overflow-hidden rounded-[5px] border border-border-subtle bg-bg-muted"
+        style={{
+          width: animated ? '100%' : '0%',
+          transition: 'width 900ms cubic-bezier(0.22, 1, 0.36, 1)',
+        }}
+      >
+        {fees.map((fee, i) => {
+          const pct = (fee.amount / total) * 100
+          const color = COLORS[i % COLORS.length]
+          return (
+            <div
+              key={`${fee.year}-${i}`}
+              title={`Year ${fee.year}: ${formatCurrency(fee.amount)} (${pct.toFixed(1)}%)`}
+              className="relative flex h-full items-center justify-center"
+              style={{
+                width: `${pct}%`,
+                background: color,
+                borderRight: i < fees.length - 1 ? '1px solid rgba(255,255,255,0.18)' : 'none',
+                opacity: animated ? 1 : 0,
+                transition: 'opacity 400ms',
+                transitionDelay: `${i * 120 + 200}ms`,
+              }}
+            >
+              {pct > 14 && (
+                <span className="text-[10px] font-semibold tracking-[0.02em] text-white/90">
+                  {pct.toFixed(0)}%
+                </span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="mt-[14px] flex flex-wrap gap-[18px]">
+        {fees.map((fee, i) => {
+          const pct = (fee.amount / total) * 100
+          const color = COLORS[i % COLORS.length]
+          return (
+            <div key={`legend-${fee.year}-${i}`} className="flex items-center gap-2">
+              <div
+                className="size-2 shrink-0 rounded-[2px]"
+                style={{ background: color }}
               />
-            )}
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="cumulative"
-              name={`Cumulative TCV (${currency})`}
-              stroke={cumulativeColor}
-              strokeWidth={2}
-              strokeDasharray="6 4"
-              dot={{ r: 3, fill: cumulativeColor, strokeWidth: 0 }}
-              activeDot={{ r: 4, fill: cumulativeColor, strokeWidth: 0 }}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
+              <div className="flex flex-col gap-[1px]">
+                <span className="text-[10px] uppercase tracking-[0.02em] text-text-muted">
+                  Year {fee.year}
+                </span>
+                <span className="text-[12px] font-semibold text-text tabular-nums">
+                  {formatCurrency(fee.amount)}{' '}
+                  <span className="text-[10px] font-medium text-text-muted">
+                    · {pct.toFixed(0)}%
+                  </span>
+                </span>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

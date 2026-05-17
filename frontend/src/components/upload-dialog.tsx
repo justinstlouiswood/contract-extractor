@@ -21,10 +21,12 @@ export function UploadDialog({ open, onOpenChange, onFileSelect }: UploadDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Upload MSA</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="gap-3 p-5 sm:max-w-md">
+        <DialogHeader className="gap-1">
+          <DialogTitle className="text-[15px] font-semibold tracking-[-0.01em] text-text">
+            Upload MSA
+          </DialogTitle>
+          <DialogDescription className="text-[12px] text-text-muted">
             Drop a PDF contract or click to browse files.
           </DialogDescription>
         </DialogHeader>
