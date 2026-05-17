@@ -7,7 +7,7 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-sm border py-6 shadow-card",
+        "bg-bg-pane text-text border-border-subtle flex flex-col gap-6 rounded-[var(--radius)] border py-6 shadow-card",
         className
       )}
       {...props}
@@ -42,7 +42,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-description"
-      className={cn("text-muted-foreground text-sm", className)}
+      className={cn("text-text-muted text-sm", className)}
       {...props}
     />
   )

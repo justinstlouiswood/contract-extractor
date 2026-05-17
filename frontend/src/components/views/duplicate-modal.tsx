@@ -1,5 +1,4 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/contract-utils'
 import type { ContractRecord } from '@/types/contract'
 
@@ -13,18 +12,33 @@ interface DuplicateModalProps {
 export function DuplicateModal({ contract, onViewExisting, onProcessAnyway, onClose }: DuplicateModalProps) {
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-sm rounded-sm">
+      <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle className="text-sm font-medium">Contract Already Processed</DialogTitle>
+          <DialogTitle className="text-sm font-medium text-text">Contract Already Processed</DialogTitle>
         </DialogHeader>
-        <p className="text-xs text-muted-foreground">
-          A contract for <span className="font-medium text-foreground">{contract.customer_name}</span> with value{' '}
-          <span className="font-medium text-foreground">{formatCurrency(contract.total_value)} {contract.currency}</span>{' '}
+        <p className="text-[12px] text-text-muted">
+          A contract for{' '}
+          <span className="font-medium text-text">{contract.customer_name}</span> with value{' '}
+          <span className="font-medium text-text tabular-nums">
+            {formatCurrency(contract.total_value)} {contract.currency}
+          </span>{' '}
           was already processed.
         </p>
         <div className="flex items-center gap-2">
-          <Button size="sm" className="h-7 text-xs" onClick={onViewExisting}>View Existing</Button>
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onProcessAnyway}>Process Anyway</Button>
+          <button
+            type="button"
+            onClick={onViewExisting}
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-btn-border bg-accent px-3 text-[12px] font-medium text-accent-fg shadow-btn hover:shadow-btn-hover"
+          >
+            View Existing
+          </button>
+          <button
+            type="button"
+            onClick={onProcessAnyway}
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-btn-border bg-bg px-3 text-[12px] font-medium text-text-default shadow-btn hover:shadow-btn-hover"
+          >
+            Process Anyway
+          </button>
         </div>
       </DialogContent>
     </Dialog>
