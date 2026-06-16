@@ -6,7 +6,7 @@ Internal tool for Customer Success, Finance, and Legal teams to extract, review,
 
 - **Backend**: Flask (Python 3.9)
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS v4 + shadcn/ui (New York)
-- **AI**: Anthropic Claude API (`claude-sonnet-4-20250514`) for contract analysis
+- **AI**: Anthropic Claude API (`claude-sonnet-4-6`) for contract analysis
 - **Email**: Gmail OAuth2 integration (send + Google Sheets push)
 - **PDF Processing**: PyMuPDF, PyPDF2, pdf2image, pytesseract
 - **PDF Viewing**: pdfjs-dist (bundled via Vite, continuous scroll with text layer)

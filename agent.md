@@ -12,7 +12,7 @@ The agent receives the full text of a PDF, pre-processed by `pdf_processor.py` w
 
 ### 1.2 Model and Parameters
 
-- **Model**: `claude-sonnet-4-20250514`
+- **Model**: `claude-sonnet-4-6`
 - **Max tokens**: 4096
 - **Temperature**: Default (deterministic extraction)
 - **Single-turn**: One user message containing the full prompt + contract text

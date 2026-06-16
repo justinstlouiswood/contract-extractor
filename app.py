@@ -643,7 +643,7 @@ def extract_contract_info(text):
     prompt = build_extraction_prompt(text)
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=5120,
         messages=[
             {"role": "user", "content": prompt}
@@ -872,7 +872,7 @@ def upload_file_stream():
             # Attempt streaming Claude call with structured error handling
             try:
                 with client.messages.stream(
-                    model="claude-sonnet-4-20250514",
+                    model="claude-sonnet-4-6",
                     max_tokens=5120,
                     messages=[{"role": "user", "content": prompt}]
                 ) as stream:
@@ -900,7 +900,7 @@ def upload_file_stream():
                                   'message': 'Retrying analysis...'})
                 try:
                     message = client.messages.create(
-                        model="claude-sonnet-4-20250514",
+                        model="claude-sonnet-4-6",
                         max_tokens=5120,
                         messages=[{"role": "user", "content": prompt}]
                     )
